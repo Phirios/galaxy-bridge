@@ -16,7 +16,7 @@ usage: wearlink-pair <command> [options]
   status                              Show the saved pairing record (Keychain), without secrets
   forget                              Delete the saved pairing record
 
-Stages stop at 4a (encryption) until a LinkEncryption implementation is installed; see HANDOFF.md.
+Encryption uses the UKEY2 responder (UKey2Responder); on first pairing, compare the code shown here with the watch.
 """
 
 let args = Array(CommandLine.arguments.dropFirst())
@@ -175,7 +175,7 @@ final class ClockworkServer: NSObject, CBPeripheralManagerDelegate {
 
     init(approve: Bool) {
         let approval = ApprovalFlag(approved: approve)
-        session = ClockworkSession(log: log, encryption: nil) { approval.approved }
+        session = ClockworkSession(log: log, encryption: UKey2Responder()) { approval.approved }
         super.init()
         if !approve {
             // Ask on stdin; the confirm characteristic reads 00 until the user says yes.

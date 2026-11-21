@@ -24,6 +24,13 @@ object WatchFaces {
     private const val WFF = "com.google.wear.watchface.format.version"
     private val RUNTIMES = setOf("com.samsung.wear.watchface.runtime", "com.google.wear.watchface.runtime")
 
+    // SysUI's exported, normal-permission editor broadcast. Sending it (we hold EDIT_WATCH_FACE)
+    // makes the named face active inside SysUI and opens its editor. See docs/EXISTING_FEATURES_RE.md.
+    private const val SYSUI_PKG = "com.samsung.android.wearable.sysui"
+    private const val EDIT_WATCH_FACE_ACTION = "com.samsung.android.wearable.sysui.action.EDIT_WATCH_FACE"
+    private const val EDIT_WATCH_FACE_RECEIVER =
+        "com.google.android.clockwork.sysui.mainui.module.watchfacepicker2.receivers.WatchFaceEditorBroadcastReceiver"
+
     fun active(c: Context): ComponentName? = runCatching { WallpaperManager.getInstance(c).wallpaperInfo?.component }.getOrNull()
 
     /** {"name", "pkg", "png"}: preview at most 240 px, PNG. */
@@ -113,11 +120,54 @@ object WatchFaces {
         if (oursActive(s)) {
             Features.result(s, "design", true, "${d.name} is on your watch")
         } else {
-            val ok = Features.start(s, Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
-                .putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, OURS)) || openPicker(s)
-            Features.result(s, "design", ok, "Choose the Wear OS Bridge face on your watch once; after that designs switch instantly")
+            // Our Bridge face is a classic WallpaperService, so it resolves cleanly for the
+            // EDIT_WATCH_FACE apply (zero taps). Fall back to the one-tap deep-link / picker.
+            val ok = applyFace(s, OURS) ||
+                deepLinkToFace(s, OURS) || openPicker(s)
+            Features.result(s, "design", ok,
+                if (ok) "Switching to the Wear OS Bridge face" else "Choose the Wear OS Bridge face on your watch once; after that designs switch instantly")
         }
         s.send(WatchMessages.feature("design", designState(s)))
+    }
+
+    /**
+     * Sets ANY installed face active via SysUI's normal-permission editor broadcast. Works for our
+     * own face and classic WallpaperService faces (their component is pkg/service and resolves);
+     * WFF/resource-only faces have a null class and won't resolve, so route those through
+     * [deepLinkToFace] instead. Returns false if the broadcast can't be sent. The editor opens on
+     * the watch after the switch (user taps Back).
+     */
+    fun applyFace(c: Context, component: ComponentName): Boolean = runCatching {
+        c.sendBroadcast(Intent(EDIT_WATCH_FACE_ACTION)
+            .setClassName(SYSUI_PKG, EDIT_WATCH_FACE_RECEIVER)
+            .putExtra("watchface", component.flattenToString()))
+        true
+    }.onFailure { android.util.Log.w("WatchFaces", "applyFace", it) }.getOrDefault(false)
+
+    /** One-tap deep-link: opens the all-faces picker scrolled to [target]; user taps to apply. */
+    fun deepLinkToFace(c: Context, target: ComponentName): Boolean = Features.start(c,
+        Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
+            .putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, target))
+
+    /**
+     * Applies the face in [pkg] on behalf of the phone. Classic WallpaperService faces (and our
+     * own) resolve to a component and switch via [applyFace] (zero taps); WFF/resource-only faces
+     * have no component, so they fall back to the one-tap picker deep-link. [cls] is the service
+     * class when the phone knows it, else empty.
+     */
+    fun apply(c: Context, pkg: String, cls: String): Boolean {
+        val pm = c.packageManager
+        val service = cls.ifEmpty {
+            pm.queryIntentServices(Intent(WallpaperService.SERVICE_INTERFACE).setPackage(pkg), 0)
+                .firstOrNull()?.serviceInfo?.name.orEmpty()
+        }
+        return if (service.isNotEmpty()) {
+            val cn = ComponentName(pkg, service)
+            applyFace(c, cn) || deepLinkToFace(c, cn) || openPicker(c)
+        } else {
+            // WFF / resource-only face: no component to resolve; deep-link to the picker (one tap).
+            deepLinkToFace(c, ComponentName(pkg, "")) || openPicker(c)
+        }
     }
 
     /** Small thumbnails for the iPhone's face list, one message each so none gets too big. */

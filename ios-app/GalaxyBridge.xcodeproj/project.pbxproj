@@ -294,7 +294,7 @@
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "The camera lets your watch act as a remote shutter.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Wear OS Bridge only writes data to Apple Health; it does not read it.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Wear OS Bridge reads your height, weight, sex and age to improve the watch's body-composition reading; it does not read any other health data.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Wear OS Bridge saves heart rate, steps, energy, distance, floors and workouts from your Galaxy Watch to Apple Health.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Photos you take with the watch shutter are saved to your library.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -330,7 +330,7 @@
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "The camera lets your watch act as a remote shutter.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Wear OS Bridge only writes data to Apple Health; it does not read it.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Wear OS Bridge reads your height, weight, sex and age to improve the watch's body-composition reading; it does not read any other health data.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Wear OS Bridge saves heart rate, steps, energy, distance, floors and workouts from your Galaxy Watch to Apple Health.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Photos you take with the watch shutter are saved to your library.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;

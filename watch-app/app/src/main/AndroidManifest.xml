@@ -26,6 +26,12 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Push-install an APK sent from the phone (one-tap confirm on the watch). prot=signature|appop:
+         not auto-granted; enable with `adb shell appops set nz.galaxybridge.watch REQUEST_INSTALL_PACKAGES allow`
+         at setup, or turn on "Install unknown apps" for this app on the watch. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Apply any installed watch face from the phone. prot=normal on this device: auto-granted. -->
+    <uses-permission android:name="com.samsung.android.wearable.sysui.permission.EDIT_WATCH_FACE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <!-- Granted once over adb on a sideloaded watch; the app works without them. -->
@@ -77,6 +83,16 @@
             android:launchMode="singleTop"
             android:showWhenLocked="true"
             android:turnScreenOn="true" />
+
+        <!-- Our own on-watch measurement panel for phone-triggered SpO2/skin-temp/ECG/BIA reads. -->
+        <activity
+            android:name=".MeasureActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@android:style/Theme.DeviceDefault" />
 
         <receiver
             android:name=".ActionReceiver"

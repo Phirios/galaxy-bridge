@@ -35,6 +35,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,6 +64,12 @@ class LinkService : Service() {
         fun start(context: Context) {
             context.startForegroundService(Intent(context, LinkService::class.java))
         }
+
+        /** The running service, or null. Used by helpers that need its context after a callback. */
+        fun current(): LinkService? = instance
+
+        /** The bonded iPhone, when connected — for call control (HFP) and audio routing. */
+        fun phoneDevice(): BluetoothDevice? = instance?.let { if (it.subscribed) it.phone else null }
 
         /** Prefers the Bluetooth remote (works in the iPhone Camera app); falls back to GBLink. */
         fun sendShutter() {
@@ -203,6 +210,13 @@ class LinkService : Service() {
         registerReceiver(bondReceiver, IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED))
         @Suppress("DEPRECATION")
         registerReceiver(faceReceiver, IntentFilter(Intent.ACTION_WALLPAPER_CHANGED).apply { addAction(Intent.ACTION_SCREEN_ON) })
+        registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        // Re-register passive health monitoring on every service start. MainActivity also does
+        // this, but only when the user opens the watch app; an uninstall+reinstall wipes the
+        // Health Services registration, so without this passive HR/steps/etc. would silently stop
+        // syncing until the watch screen was next opened. Health Services dedups by service class,
+        // so re-registering is harmless/idempotent.
+        scope.launch(Dispatchers.IO) { runCatching { Health.register(this@LinkService) } }
         status.value = Status.WAITING
     }
 
@@ -212,6 +226,7 @@ class LinkService : Service() {
         scope.cancel()
         runCatching { unregisterReceiver(bondReceiver) }
         runCatching { unregisterReceiver(faceReceiver) }
+        runCatching { unregisterReceiver(batteryReceiver) }
         ring(false)
         apple.close()
         media.release()
@@ -251,7 +266,10 @@ class LinkService : Service() {
         }
         val toWatch = BluetoothGattCharacteristic(
             GBLink.TO_WATCH,
-            BluetoothGattCharacteristic.PROPERTY_WRITE,
+            // Advertise write-without-response too: it lets the iPhone skip a per-chunk ATT
+            // round-trip (one connection interval each) on commands, which is the dominant
+            // phone→watch latency. Still write-encrypted, so pairing is unchanged.
+            BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
             BluetoothGattCharacteristic.PERMISSION_WRITE_ENCRYPTED_MITM,
         )
         service.addCharacteristic(toPhone)
@@ -341,6 +359,19 @@ class LinkService : Service() {
         }
     }
 
+    /** Pushes the watch's own battery level to the phone whenever it changes (for the live card). */
+    private var lastSentBattery = -1
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val pct = batteryPercent()
+            battery.value = pct
+            if (pct in 0..100 && pct != lastSentBattery && phone != null && subscribed) {
+                lastSentBattery = pct
+                send(WatchMessages.battery(pct))
+            }
+        }
+    }
+
     /** A phone that subscribed while its pairing was still finishing. */
     private var bondingPhone: BluetoothDevice? = null
 
@@ -376,6 +407,10 @@ class LinkService : Service() {
                 mtu = 23
                 findingPhone.value = false
                 LinkService.status.value = Status.WAITING
+                // Re-advertise at once so the iPhone's pending reconnect can re-attach immediately
+                // instead of waiting for the next advertise() trigger. Without this, a disconnect
+                // on watch sleep/doze could leave the watch silent and the link cold for a while.
+                handler.post { advertise() }
             }
         }
 

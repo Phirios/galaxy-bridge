@@ -94,6 +94,10 @@ public enum SampleKind: String, Codable, CaseIterable {
     case activeEnergy = "kcal"   // kilocalories over [start, end]
     case distance = "dist"       // metres over [start, end]
     case floors = "floors"       // flights climbed over [start, end]
+    case spo2 = "spo2"           // blood oxygen percent, instantaneous (start == end)
+    case skinTemp = "skintemp"   // skin/wrist temperature °C, instantaneous (start == end)
+    case restingHeartRate = "rhr" // resting bpm, instantaneous
+    case sleep = "sleep"         // value = SleepStage.rawValue over [start, end]
 
     /// Physically plausible bounds per sample, used to reject corrupt or hostile input.
     var validRange: ClosedRange<Double> {
@@ -103,8 +107,18 @@ public enum SampleKind: String, Codable, CaseIterable {
         case .activeEnergy: return 0...5_000
         case .distance: return 0...100_000
         case .floors: return 0...500
+        case .spo2: return 50...100
+        case .skinTemp: return 20...45
+        case .restingHeartRate: return 25...150
+        case .sleep: return 0...3
         }
     }
+}
+
+/// Sleep stage carried in a `sleep` sample's value. HealthKit distinguishes these; the watch's
+/// heuristic (`SleepTracker.kt`) only produces `asleep`, but the wire format allows the rest.
+public enum SleepStage: Double {
+    case inBed = 0, asleep = 1, awake = 2, deep = 3
 }
 
 public struct HealthSample: Codable, Equatable {
@@ -163,6 +177,9 @@ public enum WatchSetting: String, CaseIterable {
     case syncSteps = "sync.steps"
     case syncEnergy = "sync.kcal"
     case syncDistance = "sync.dist"
+    case syncSpo2 = "sync.spo2"
+    case syncSkinTemp = "sync.skintemp"
+    case syncSleep = "sync.sleep"
     case brightness = "brightness"
     case screenTimeout = "timeout"
     case doNotDisturb = "dnd"
@@ -438,13 +455,16 @@ public enum GBFeature {
     /// Watch → phone.
     public static let fromWatch: Set<String> = [
         "notifApps", "apps", "sounds", "recordings", "recPart", "workout", "reminderDone",
-        "camCmd", "camView", "result", "face", "faces", "facePreview", "design",
+        "camCmd", "camView", "result", "face", "faces", "facePreview", "design", "sensors", "ecg", "bia",
+        "install",
     ]
     /// Phone → watch (must match Features.FROM_PHONE in the watch app).
     public static let toWatch: Set<String> = [
         "contacts", "mute", "reminders", "alarm", "timer", "uninstall", "openStore", "launch",
         "getApps", "getSounds", "setSound", "photo", "getRecordings", "getRecording", "workoutAck",
-        "camFrame", "camState", "getNotifApps", "getFace", "getFaces", "openFacePicker", "setDesign", "getDesign",
+        "camFrame", "camState", "getNotifApps", "getFace", "getFaces", "openFacePicker", "applyFace", "setDesign", "getDesign",
+        "getSensors", "measureSensors", "openSensorSettings", "measureEcg", "measureBia",
+        "install", "setBiaProfile", "call",
     ]
 
     public static func message(_ type: String, _ body: [String: Any] = [:]) -> GBMessage? {

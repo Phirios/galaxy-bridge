@@ -20,6 +20,9 @@ final class PhoneServices: NSObject, ObservableObject {
     @Published private(set) var weather: WeatherReport?
     @Published private(set) var calendarAllowed = false
     @Published private(set) var findingPhone = false
+    /// This iPhone's battery, mirrored for the dashboard live card (0–100), and whether it's charging.
+    @Published private(set) var phoneBattery: Int?
+    @Published private(set) var phoneCharging = false
 
     var send: ((GBMessage) -> Void)?
 
@@ -34,6 +37,7 @@ final class PhoneServices: NSObject, ObservableObject {
         location.delegate = self
         location.desiredAccuracy = kCLLocationAccuracyKilometer
         UIDevice.current.isBatteryMonitoringEnabled = true
+        updateBatteryState()
         for name in [UIDevice.batteryLevelDidChangeNotification, UIDevice.batteryStateDidChangeNotification] {
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.sendBattery() }
@@ -72,10 +76,18 @@ final class PhoneServices: NSObject, ObservableObject {
     }
 
     private func sendBattery() {
+        updateBatteryState()
+        guard let percent = phoneBattery else { return }
+        send?(.phoneBattery(percent: percent, charging: phoneCharging))
+    }
+
+    /// Reads this iPhone's battery into the published properties (and leaves them nil if the
+    /// simulator or device reports an unknown level).
+    private func updateBatteryState() {
         let level = UIDevice.current.batteryLevel
-        guard level >= 0 else { return }
+        phoneBattery = level >= 0 ? Int((level * 100).rounded()) : nil
         let state = UIDevice.current.batteryState
-        send?(.phoneBattery(percent: Int((level * 100).rounded()), charging: state == .charging || state == .full))
+        phoneCharging = state == .charging || state == .full
     }
 
     private func sendCalendar() {

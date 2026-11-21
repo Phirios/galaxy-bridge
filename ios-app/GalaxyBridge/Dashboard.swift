@@ -59,6 +59,8 @@ private struct HomeView: View {
                 HStack { Wordmark(); Spacer() }
                     .padding(.top, 4)
 
+                LiveCard()
+
                 hero
 
                 HStack(spacing: 6) {
@@ -122,6 +124,54 @@ private struct HomeView: View {
             StatusPill(status: link.status)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// Live snapshot at the top of the dashboard: latest heart rate and SpO₂ from the watch's
+/// sensors, plus the watch's and this iPhone's battery. Values fall back to "–" until they arrive.
+private struct LiveCard: View {
+    @EnvironmentObject var link: WatchLink
+    @EnvironmentObject var health: HealthSync
+    @EnvironmentObject var phone: PhoneServices
+
+    var body: some View {
+        let s = health.summary
+        HStack(spacing: 10) {
+            metric(symbol: "heart.fill", color: Theme.heart, title: "Heart",
+                   value: s.heartRate.map { "\(Int($0.rounded()))" } ?? "–", unit: "bpm")
+            divider
+            metric(symbol: "lungs.fill", color: Theme.accent2, title: "SpO₂",
+                   value: s.spo2.map { "\(Int($0.rounded()))" } ?? "–", unit: "%")
+            divider
+            metric(symbol: link.watchStatus?.charging == true ? "applewatch.radiowaves.left.and.right" : "applewatch",
+                   color: Theme.steps, title: "Watch",
+                   value: link.watchBattery.map { "\($0)" } ?? "–", unit: "%")
+            divider
+            metric(symbol: phone.phoneCharging ? "battery.100.bolt" : "iphone",
+                   color: Theme.accent, title: "Phone",
+                   value: phone.phoneBattery.map { "\($0)" } ?? "–", unit: "%")
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .card()
+    }
+
+    private var divider: some View {
+        RoundedRectangle(cornerRadius: 1).fill(.white.opacity(0.12)).frame(width: 1, height: 40)
+    }
+
+    private func metric(symbol: String, color: Color, title: String, value: String, unit: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: symbol).font(.subheadline.weight(.semibold)).foregroundStyle(color)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value).font(.system(.title3, design: .rounded).weight(.bold)).foregroundStyle(.white)
+                    .contentTransition(.numericText()).lineLimit(1).minimumScaleFactor(0.6)
+                Text(unit).font(.caption2).foregroundStyle(.white.opacity(0.6))
+            }
+            Text(title).font(.caption2).foregroundStyle(.white.opacity(0.6))
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -248,6 +298,14 @@ private struct HealthView: View {
                                value: (s.distance / 1000).formatted(.number.precision(.fractionLength(2))), unit: "km")
                     MetricTile(title: "Heart rate", symbol: "heart.fill", color: Theme.heart,
                                value: s.heartRate.map { "\(Int($0.rounded()))" } ?? "–", unit: "bpm")
+                    MetricTile(title: "Blood oxygen", symbol: "lungs.fill", color: Theme.accent2,
+                               value: s.spo2.map { "\(Int($0.rounded()))" } ?? "–", unit: "% SpO₂")
+                    MetricTile(title: "Skin temp", symbol: "thermometer.medium", color: .orange,
+                               value: s.skinTemp.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "–", unit: "°C")
+                    MetricTile(title: "Resting HR", symbol: "heart.text.square.fill", color: Theme.accent3,
+                               value: s.restingHeartRate.map { "\(Int($0.rounded()))" } ?? "–", unit: "bpm")
+                    MetricTile(title: "Floors", symbol: "figure.stairs", color: Theme.distance,
+                               value: s.floors.formatted(.number.precision(.fractionLength(0))), unit: "climbed")
                 }
 
                 SyncCard()

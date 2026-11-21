@@ -84,7 +84,14 @@ enum class SampleKind(val wire: String, val range: ClosedFloatingPointRange<Doub
     ACTIVE_ENERGY("kcal", 0.0..5_000.0),
     DISTANCE("dist", 0.0..100_000.0),
     FLOORS("floors", 0.0..500.0),
+    SPO2("spo2", 50.0..100.0),
+    SKIN_TEMP("skintemp", 20.0..45.0),
+    RESTING_HEART_RATE("rhr", 25.0..150.0),
+    SLEEP("sleep", 0.0..3.0),
 }
+
+/** Sleep stage carried in a SLEEP sample's value. Mirrors SleepStage in GBLink.swift. */
+enum class SleepStage(val value: Double) { IN_BED(0.0), ASLEEP(1.0), AWAKE(2.0), DEEP(3.0) }
 
 data class HealthSample(val kind: SampleKind, val startMs: Long, val endMs: Long, val value: Double) {
     fun isPlausible(): Boolean = value.isFinite() && value in kind.range && endMs >= startMs

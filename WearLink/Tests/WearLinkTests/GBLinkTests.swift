@@ -64,6 +64,26 @@ final class GBMessageTests: XCTestCase {
         XCTAssertEqual(try GBMessage.decode(m.encoded(), now: now), m)
     }
 
+    func testSensorAndSleepSamplesRoundTrip() throws {
+        let m = GBMessage.samples(batchId: batch, items: [
+            HealthSample(kind: .spo2, start: nowMs, end: nowMs, value: 97),
+            HealthSample(kind: .skinTemp, start: nowMs, end: nowMs, value: 33.4),
+            HealthSample(kind: .restingHeartRate, start: nowMs, end: nowMs, value: 58),
+            HealthSample(kind: .sleep, start: nowMs - 3_600_000, end: nowMs, value: SleepStage.asleep.rawValue),
+        ])
+        XCTAssertEqual(try GBMessage.decode(m.encoded(), now: now), m)
+    }
+
+    func testRejectsImplausibleSpo2() {
+        let m = GBMessage.samples(batchId: batch, items: [
+            HealthSample(kind: .spo2, start: nowMs, end: nowMs, value: 20),   // below 50%: impossible
+            HealthSample(kind: .spo2, start: nowMs, end: nowMs, value: 95),
+        ])
+        XCTAssertEqual(try GBMessage.decode(m.encoded(), now: now), .samples(batchId: batch, items: [
+            HealthSample(kind: .spo2, start: nowMs, end: nowMs, value: 95),
+        ]))
+    }
+
     func testRejectsImplausibleHeartRate() {
         let m = GBMessage.samples(batchId: batch, items: [
             HealthSample(kind: .heartRate, start: nowMs, end: nowMs, value: 900),
@@ -144,6 +164,37 @@ final class GBAdvertTests: XCTestCase {
         XCTAssertEqual(try GBMessage.decode(GBMessage.find(on: true).encoded()), .find(on: true))
         let ev = try JSONSerialization.jsonObject(with: GBMessage.events([CalendarItem(title: "A", start: 1, end: 2, allDay: false)]).encoded()) as! [String: Any]
         XCTAssertEqual((ev["items"] as? [[String: Any]])?.first?["title"] as? String, "A")
+    }
+
+    func testNewFeatureMessagesRoundTrip() throws {
+        // Every new phone→watch feature builds a .raw message whose JSON carries its "t" and fields.
+        func decodeBody(_ m: GBMessage?) throws -> [String: Any] {
+            guard case let .raw(_, data)? = m else { throw Invalid.missingField("raw") }
+            return try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        }
+        enum Invalid: Error { case missingField(String) }
+
+        let face = try decodeBody(GBFeature.message("applyFace", ["pkg": "com.example.face", "cls": ""]))
+        XCTAssertEqual(face["t"] as? String, "applyFace")
+        XCTAssertEqual(face["pkg"] as? String, "com.example.face")
+
+        let bia = try decodeBody(GBFeature.message("setBiaProfile", ["height": 178.0, "weight": 74.5, "gender": 1, "age": 31]))
+        XCTAssertEqual(bia["t"] as? String, "setBiaProfile")
+        XCTAssertEqual(bia["height"] as? Double, 178.0)
+        XCTAssertEqual(bia["gender"] as? Int, 1)
+
+        let call = try decodeBody(GBFeature.message("call", ["action": "dial", "number": "+6421234567"]))
+        XCTAssertEqual(call["t"] as? String, "call")
+        XCTAssertEqual(call["action"] as? String, "dial")
+
+        let install = try decodeBody(GBFeature.message("install", ["id": "abc", "part": 0, "parts": 1, "name": "App", "data": "QQ=="]))
+        XCTAssertEqual(install["t"] as? String, "install")
+        XCTAssertEqual(install["parts"] as? Int, 1)
+
+        // The watch's install-status reply decodes as a .raw feature message.
+        let status = Data(#"{"t":"install","pkg":"com.example.app","status":"ok","detail":"done"}"#.utf8)
+        guard case let .raw(type, _) = try GBMessage.decode(status) else { return XCTFail() }
+        XCTAssertEqual(type, "install")
     }
 
     func testCorrectsWrongWatchClock() throws {

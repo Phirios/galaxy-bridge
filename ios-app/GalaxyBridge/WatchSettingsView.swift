@@ -5,6 +5,8 @@ import WearLink
 struct WatchSettingsView: View {
     @EnvironmentObject var link: WatchLink
     @EnvironmentObject var phone: PhoneServices
+    @EnvironmentObject var health: HealthSync
+    @EnvironmentObject var hub: FeatureHub
     @State private var brightness: Double = 128
     @State private var editingBrightness = false
 
@@ -123,12 +125,45 @@ struct WatchSettingsView: View {
             }
             .disabled(s?.perms.secure != true)
 
-            Section("Apple Health") {
+            Section {
                 toggle("Heart rate", .syncHeart, symbol: "heart.fill", color: Theme.heart)
                 toggle("Steps", .syncSteps, symbol: "figure.walk", color: Theme.steps)
                 toggle("Active energy", .syncEnergy, symbol: "flame.fill", color: Theme.energy)
                 toggle("Distance", .syncDistance, symbol: "location.north.line.fill", color: Theme.distance)
                 toggle("Floors climbed", .syncFloors, symbol: "figure.stairs", color: .orange)
+                healthToggle("Blood oxygen", .syncSpo2, symbol: "lungs.fill", color: Theme.accent2,
+                             latest: health.summary.spo2.map { "\(Int($0.rounded()))%" })
+                healthToggle("Skin temperature", .syncSkinTemp, symbol: "thermometer.medium", color: .orange, latest: nil)
+                healthToggle("Sleep", .syncSleep, symbol: "bed.double.fill", color: .indigo, latest: nil)
+            } header: {
+                Text("Apple Health")
+            } footer: {
+                Text("Heart rate, steps, energy, distance and floors sync automatically. Blood oxygen, skin temperature and sleep need Samsung Health developer mode on the watch (set it up under More → Body sensors); turn them on to write their readings to Apple Health.")
+            }
+
+            Section {
+                NavigationLink {
+                    BodySensorsView()
+                } label: {
+                    sensorRow("Blood oxygen & skin temperature", symbol: "heart.text.square.fill", color: .red,
+                              detail: "Measure on demand")
+                }
+                NavigationLink {
+                    BodySensorsView()
+                } label: {
+                    sensorRow("ECG", symbol: "waveform.path.ecg", color: .pink,
+                              detail: hub.ecg.map { "Recorded \($0.at.formatted(.relative(presentation: .named)))" } ?? "Record (display only)")
+                }
+                NavigationLink {
+                    BodySensorsView()
+                } label: {
+                    sensorRow("Body composition", symbol: "figure.arms.open", color: .teal,
+                              detail: hub.bodyComposition?.fatPct.map { "Body fat \(Int($0.rounded()))%" } ?? "Measure on demand")
+                }
+            } header: {
+                Text("On-demand sensors")
+            } footer: {
+                Text("ECG is shown in the app only — Apple Health doesn't accept ECG from third-party apps.")
             }
 
             Section {
@@ -182,6 +217,32 @@ struct WatchSettingsView: View {
                              set: { link.set(key, $0 ? 1 : 0) })) {
             Label { Text(title) } icon: { icon(symbol, color) }
         }
+    }
+
+    /// A sync toggle that also shows the latest reading for that sensor, when one has arrived.
+    private func healthToggle(_ title: String, _ key: WatchSetting, symbol: String, color: Color, latest: String?) -> some View {
+        Toggle(isOn: Binding(get: { (s?.settings[key.rawValue] ?? 0) == 1 },
+                             set: { link.set(key, $0 ? 1 : 0) })) {
+            Label {
+                HStack {
+                    Text(title)
+                    if let latest {
+                        Spacer(minLength: 8)
+                        Text(latest).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } icon: { icon(symbol, color) }
+        }
+    }
+
+    private func sensorRow(_ title: String, symbol: String, color: Color, detail: String) -> some View {
+        Label {
+            HStack {
+                Text(title)
+                Spacer(minLength: 8)
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+        } icon: { icon(symbol, color) }
     }
 
     private func icon(_ symbol: String, _ color: Color) -> some View {

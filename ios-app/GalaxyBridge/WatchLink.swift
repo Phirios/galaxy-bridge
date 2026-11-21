@@ -63,7 +63,6 @@ final class WatchLink: NSObject, ObservableObject {
     private var toWatch: CBCharacteristic?
     private var assembler = GBLinkAssembler()
     private var pendingWrites: [Data] = []
-    private var writeInFlight = false
 
     override init() {
         super.init()
@@ -74,7 +73,7 @@ final class WatchLink: NSObject, ObservableObject {
     func send(_ message: GBMessage) {
         guard let peripheral, let toWatch, status == .connected else { return }
         do {
-            let max = min(peripheral.maximumWriteValueLength(for: .withResponse), 512)
+            let max = min(peripheral.maximumWriteValueLength(for: .withoutResponse), 512)
             pendingWrites += GBLink.chunks(for: try message.encoded(), maxChunk: max)
             pumpWrites(peripheral, toWatch)
         } catch {
@@ -135,10 +134,16 @@ final class WatchLink: NSObject, ObservableObject {
     /// Set when the bond needs replacing; stops the reconnect loop until the user re-pairs.
     private var knownPeripheralIgnored: UUID?
 
+    /// Sends queued chunks as unacknowledged writes. A write-with-response costs a full ATT
+    /// round-trip — at a 30 ms connection interval that is ~30–60 ms per chunk, and the old pump
+    /// serialized on that ack, so an interactive command waited one round-trip per chunk. Without
+    /// response there is no ack to wait on: CoreBluetooth paces us instead, so we drain while it
+    /// can accept a write and resume from peripheralIsReady(toSendWriteWithoutResponse:). The link
+    /// layer still delivers in order and retransmits, so GBLink reassembly stays correct.
     private func pumpWrites(_ p: CBPeripheral, _ c: CBCharacteristic) {
-        guard !writeInFlight, !pendingWrites.isEmpty else { return }
-        writeInFlight = true
-        p.writeValue(pendingWrites.removeFirst(), for: c, type: .withResponse)
+        while !pendingWrites.isEmpty, p.canSendWriteWithoutResponse {
+            p.writeValue(pendingWrites.removeFirst(), for: c, type: .withoutResponse)
+        }
     }
 
     private func noteConnection(_ connected: Bool) {
@@ -214,7 +219,6 @@ final class WatchLink: NSObject, ObservableObject {
         subscribeRetries = 0
         assembler = GBLinkAssembler()
         pendingWrites.removeAll()
-        writeInFlight = false
     }
 
     private func handle(_ data: Data) {
@@ -436,14 +440,10 @@ extension WatchLink: CBPeripheralDelegate {
         }
     }
 
-    nonisolated func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic,
-                                error: Error?) {
+    /// CoreBluetooth's back-pressure signal: it can take more unacknowledged writes, so resume
+    /// draining whatever queued up while its buffer was full.
+    nonisolated func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
         MainActor.assumeIsolated {
-            writeInFlight = false
-            if error != nil {
-                pendingWrites.removeAll()
-                return
-            }
             if let toWatch { pumpWrites(peripheral, toWatch) }
         }
     }

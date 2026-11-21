@@ -26,6 +26,9 @@ object WatchSettings {
     const val SYNC_ENERGY = "sync.kcal"
     const val SYNC_DISTANCE = "sync.dist"
     const val SYNC_FLOORS = "sync.floors"
+    const val SYNC_SPO2 = "sync.spo2"
+    const val SYNC_SKIN_TEMP = "sync.skintemp"
+    const val SYNC_SLEEP = "sync.sleep"
     const val AOD = "aod"
     const val RAISE_TO_WAKE = "raise"
     const val TAP_TO_WAKE = "tapWake"
@@ -52,6 +55,8 @@ object WatchSettings {
     private val APP_KEYS = mapOf(
         NOTIFICATIONS to 1, CALLS to 1, CLEAR_ON_IPHONE to 1, MUSIC to 1,
         SYNC_HEART to 1, SYNC_STEPS to 1, SYNC_ENERGY to 1, SYNC_DISTANCE to 1, SYNC_FLOORS to 1,
+        // Samsung-only sensors and sleep default off; turned on from the iPhone once dev mode is set.
+        SYNC_SPO2 to 0, SYNC_SKIN_TEMP to 0, SYNC_SLEEP to 0,
     )
     private val RANGES = APP_KEYS.mapValues { 0..1 } + mapOf(
         BRIGHTNESS to 1..255,
@@ -98,6 +103,10 @@ object WatchSettings {
         SampleKind.ACTIVE_ENERGY -> SYNC_ENERGY
         SampleKind.DISTANCE -> SYNC_DISTANCE
         SampleKind.FLOORS -> SYNC_FLOORS
+        SampleKind.SPO2 -> SYNC_SPO2
+        SampleKind.SKIN_TEMP -> SYNC_SKIN_TEMP
+        SampleKind.RESTING_HEART_RATE -> SYNC_HEART
+        SampleKind.SLEEP -> SYNC_SLEEP
     })
 
     fun canWriteSystem(c: Context) = Settings.System.canWrite(c)

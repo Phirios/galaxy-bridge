@@ -20,3 +20,11 @@ watch-app/.gradle/
 watch-app/app/build/
 watch-app/build/
 watch-app/local.properties
+research/ukey2-src/
+research/
+
+# Kotlin incremental/errors
+watch-app/.kotlin/
+
+# iOS build output
+ios-app/build/

@@ -118,6 +118,7 @@ adb shell pm grant $P android.permission.PACKAGE_USAGE_STATS     # active face, 
 adb shell appops set $P GET_USAGE_STATS allow
 adb shell appops set $P WRITE_SETTINGS allow                     # brightness, timeout, sounds
 adb shell appops set $P SYSTEM_ALERT_WINDOW allow                # open Clock/Play Store from the iPhone
+adb shell appops set $P REQUEST_INSTALL_PACKAGES allow           # push-install APKs from the iPhone (one-tap confirm)
 adb shell cmd notification allow_dnd $P                          # Do Not Disturb
 adb shell dumpsys deviceidle whitelist +$P                       # stay connected in the background
 adb shell settings put global hidden_api_policy 1                # call audio, forgetting the iPhone

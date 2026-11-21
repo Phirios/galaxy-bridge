@@ -4,11 +4,32 @@ import Foundation
 import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 import WearLink
 
 /// The iPhone side of the watch features added on top of the core link: contacts, notification
 /// filters, reminders, alarms and timers, apps, sounds, photos, recordings, workouts and the
 /// camera preview. Everything the watch sends is untrusted and checked before use.
+/// One ECG recording from the watch: a microvolt series at a known sample rate. Display only.
+struct EcgStrip {
+    let hz: Int
+    let microvolts: [Int16]
+    let at: Date
+    /// Millivolts for plotting.
+    var millivolts: [Double] { microvolts.map { Double($0) / 1000.0 } }
+    var durationSec: Double { hz > 0 ? Double(microvolts.count) / Double(hz) : 0 }
+}
+
+/// A body-composition (BIA) reading. Any field may be absent depending on the watch.
+struct BodyComposition {
+    let fatPct: Double?      // body fat, %
+    let leanKg: Double?      // fat-free mass, kg
+    let waterPct: Double?    // total body water, %
+    let muscleKg: Double?    // skeletal muscle mass, kg
+    let bmr: Double?         // basal metabolic rate, kcal/day
+    let at: Date
+}
+
 @MainActor
 final class FeatureHub: ObservableObject {
     struct NotifApp: Identifiable, Equatable { let id: String; var name: String; var muted: Bool }
@@ -25,6 +46,17 @@ final class FeatureHub: ObservableObject {
     /// The design on the Wear OS Bridge face, and whether that face is the active one.
     @Published private(set) var design: FaceDesign? = (UserDefaults.standard.data(forKey: "design")).flatMap { try? JSONDecoder().decode(FaceDesign.self, from: $0) }
     @Published private(set) var designActive = UserDefaults.standard.bool(forKey: "designActive")
+
+    /// Samsung-only body sensors (SpO₂, skin temperature), reachable once Samsung Health's
+    /// developer mode is on. See SensorBridge.kt on the watch.
+    @Published private(set) var sensorsAvailable = false
+    @Published private(set) var measuringSensors = false
+    @Published private(set) var measuringEcg = false
+    @Published private(set) var measuringBia = false
+    /// Latest ECG strip (display only — HealthKit bars third-party ECG writes).
+    @Published private(set) var ecg: EcgStrip?
+    /// Latest body-composition reading; writable parts go to Apple Health.
+    @Published private(set) var bodyComposition: BodyComposition?
     struct WatchFace: Identifiable, Equatable { let id: String; let name: String; let active: Bool }
     @Published private(set) var notifApps: [NotifApp] = []
     @Published private(set) var categories: [Int: Bool] = [:]
@@ -39,6 +71,8 @@ final class FeatureHub: ObservableObject {
     @Published private(set) var downloadProgress = 0.0
     @Published private(set) var contactsBusy = false
     @Published private(set) var photoBusy = false
+    /// An APK is being streamed to the watch for a push-install.
+    @Published private(set) var installing = false
     @Published var shareReminders = UserDefaults.standard.object(forKey: "shareReminders") as? Bool ?? true {
         didSet { UserDefaults.standard.set(shareReminders, forKey: "shareReminders"); Task { await sendReminders() } }
     }
@@ -161,12 +195,37 @@ final class FeatureHub: ObservableObject {
                 design = d
                 UserDefaults.standard.set(try? JSONEncoder().encode(d), forKey: "design")
             }
+        case "install":
+            installing = false
+            let status = b["status"] as? String ?? ""
+            let detail = String((b["detail"] as? String ?? "").prefix(120))
+            toast = detail.isEmpty ? (status == "ok" ? "Installed on watch" : "Install failed") : detail
+        case "sensors":
+            sensorsAvailable = b["available"] as? Bool ?? false
+        case "ecg":
+            measuringEcg = false
+            guard let b64 = b["uv"] as? String, let data = Data(base64Encoded: b64),
+                  data.count <= 64_000, !data.isEmpty else { break }
+            let hz = (b["hz"] as? NSNumber)?.intValue ?? 250
+            let uv: [Int16] = data.withUnsafeBytes { Array($0.bindMemory(to: Int16.self)) }
+            ecg = EcgStrip(hz: max(1, hz), microvolts: uv, at: Date())
+        case "bia":
+            measuringBia = false
+            func num(_ k: String) -> Double? { (b[k] as? NSNumber)?.doubleValue }
+            let bc = BodyComposition(fatPct: num("fatPct"), leanKg: num("leanKg"),
+                                     waterPct: num("waterPct"), muscleKg: num("muscleKg"),
+                                     bmr: num("bmr"), at: Date())
+            bodyComposition = bc
+            Task { await health?.saveBodyComposition(bc) }
         case "result":
             let what = b["what"] as? String ?? ""
             let ok = b["ok"] as? Bool ?? false
             let detail = String((b["detail"] as? String ?? "").prefix(120))
             if what == "contacts" { contactsBusy = false }
             if what == "photo" { photoBusy = false }
+            if what == "sensors" { measuringSensors = false }
+            if what == "ecg" { measuringEcg = false }
+            if what == "bia" { measuringBia = false }
             toast = detail.isEmpty ? (ok ? "Done on watch" : "The watch couldn't do that") : detail
         default: break
         }
@@ -181,6 +240,15 @@ final class FeatureHub: ObservableObject {
         return (try? Data(contentsOf: faceURL)).flatMap(UIImage.init(data:))
     }
 
+    func requestSensors() { post("getSensors") }
+    func openSensorSettings() { post("openSensorSettings") }
+    func measureSensors(_ kinds: [String]) {
+        measuringSensors = true
+        post("measureSensors", ["sensors": kinds])
+    }
+    func measureEcg() { measuringEcg = true; post("measureEcg") }
+    func measureBia() { measuringBia = true; post("measureBia") }
+
     func requestFaces() { post("getFaces") }
     func requestFace() { post("getFace") }
     func openFacePicker() { post("openFacePicker") }
@@ -188,6 +256,58 @@ final class FeatureHub: ObservableObject {
     func setDesign(_ d: FaceDesign) {
         design = d
         post("setDesign", d.json)
+    }
+
+    /// Applies any installed face from the phone. The watch switches classic faces directly (via
+    /// SysUI's EDIT_WATCH_FACE) and deep-links to the picker for WFF faces (one tap). The phone
+    /// doesn't know a third-party face's service class, so it sends an empty `cls`.
+    func applyFace(_ f: WatchFace) {
+        guard isConnected() else { toast = "Connect your watch first"; return }
+        post("applyFace", ["pkg": f.id, "cls": ""])
+    }
+
+    // MARK: Install / body profile / calls
+
+    /// Streams an APK chosen on the phone to the watch for a one-tap-confirm install.
+    func installApk(_ url: URL) {
+        guard isConnected() else { toast = "Connect your watch first"; return }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url) else { toast = "Couldn't read that file"; return }
+        guard data.count <= 200 * 1024 * 1024 else { toast = "That APK is too large"; return }
+        installing = true
+        let id = UUID().uuidString
+        let name = url.deletingPathExtension().lastPathComponent
+        let part = 32 * 1024
+        let parts = max(1, (data.count + part - 1) / part)
+        for i in 0..<parts {
+            let chunk = data.subdata(in: i * part..<min(data.count, (i + 1) * part))
+            post("install", ["id": id, "part": i, "parts": parts, "name": String(name.prefix(60)), "data": chunk.base64EncodedString()])
+        }
+        toast = "Sending \(data.count / 1024) KB to your watch…"
+    }
+
+    /// Sends the BIA body profile (height cm, weight kg, gender 1=male/0=female, age) to the watch.
+    func setBiaProfile(heightCm: Double, weightKg: Double, gender: Int, age: Int) {
+        post("setBiaProfile", ["height": heightCm, "weight": weightKg, "gender": gender, "age": age])
+    }
+
+    /// Reads the profile from Apple Health and, if complete, sends it; returns what was read so the
+    /// UI can prefill any missing field for manual entry.
+    func sendBiaProfileFromHealth() async -> HealthSync.BiaProfileInput? {
+        guard let health else { return nil }
+        let p = await health.readBiaProfile()
+        if let h = p.heightCm, let w = p.weightKg, let g = p.gender, let a = p.age {
+            setBiaProfile(heightCm: h, weightKg: w, gender: g, age: a)
+            toast = "Body profile sent to your watch"
+        }
+        return p
+    }
+
+    /// Call control over HFP (place/answer/reject/hang up). Needs a classic-BT bond; see CallAudio.
+    func call(_ action: String, number: String = "") {
+        guard isConnected() else { toast = "Connect your watch first"; return }
+        post("call", ["action": action, "number": number])
     }
 
     // MARK: Contacts
@@ -390,12 +510,17 @@ struct MoreView: View {
                 Item(title: "Contacts", sub: "Copy to the watch", symbol: "person.crop.circle.fill", color: .gray, dest: AnyView(ContactsView())),
                 Item(title: "Reminders", sub: "Tile on the watch", symbol: "checklist", color: .orange, dest: AnyView(RemindersView())),
                 Item(title: "Alarms & timers", sub: "Set on the watch", symbol: "alarm.fill", color: .indigo, dest: AnyView(AlarmsView())),
+                Item(title: "Calls & texts", sub: "Answer, call, hang up", symbol: "phone.fill", color: .green, dest: AnyView(CallsView())),
             ]),
             ("Media & activity", [
                 Item(title: "Photos", sub: "Send to Gallery", symbol: "photo.fill", color: .purple, dest: AnyView(PhotosToWatchView())),
                 Item(title: "Voice recordings", sub: "Copy from watch", symbol: "waveform", color: .cyan, dest: AnyView(RecordingsView())),
                 Item(title: "Workouts", sub: "Saved to Health", symbol: "figure.run", color: .green, dest: AnyView(WorkoutsInfoView())),
+                Item(title: "Body sensors", sub: "SpO₂ & skin temp", symbol: "heart.text.square.fill", color: .red, dest: AnyView(BodySensorsView())),
                 Item(title: "Sounds", sub: "Ringtone and alerts", symbol: "speaker.wave.2.fill", color: .yellow, dest: AnyView(SoundsView())),
+            ]),
+            ("Pairing & setup", [
+                Item(title: "Native pairing", sub: "UKEY2, experimental", symbol: "lock.shield.fill", color: .blue, dest: AnyView(NativePairingView())),
             ]),
         ]
     }
@@ -435,11 +560,201 @@ struct MoreView: View {
     }
 }
 
+/// Blood oxygen and skin temperature from the watch's Samsung-only sensors, written to Apple
+/// Health. These need Samsung Health's developer mode on (one-time, on the watch); the watch
+/// then streams the sensors through Samsung's own tracking service.
+struct BodySensorsView: View {
+    @EnvironmentObject var hub: FeatureHub
+    @EnvironmentObject var link: WatchLink
+    @State private var heightCm = 170.0
+    @State private var weightKg = 70.0
+    @State private var isMale = true
+    @State private var age = 30
+
+    private func prefill(_ p: HealthSync.BiaProfileInput) {
+        if let h = p.heightCm { heightCm = min(max(h, 100), 230) }
+        if let w = p.weightKg { weightKg = min(max(w, 30), 250) }
+        if let g = p.gender { isMale = g == 1 }
+        if let a = p.age { age = min(max(a, 10), 120) }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                SectionTitle(text: "Blood oxygen & skin temperature")
+
+                Text(hub.sensorsAvailable
+                     ? "Your watch can read SpO₂ and skin temperature. Readings are written to Apple Health."
+                     : "Checking whether your watch's Samsung health sensors are reachable…")
+                    .font(.callout).foregroundStyle(.white.opacity(0.75))
+
+                VStack(alignment: .leading, spacing: 14) {
+                    step(1, "Turn on Developer mode",
+                         "Opens Samsung Health on the watch. Enable Developer mode so other apps may read the sensors.")
+                    Button { hub.openSensorSettings() } label: {
+                        Label("Open Samsung Health on watch", systemImage: "arrow.up.forward.app.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent).tint(.blue)
+                    .disabled(link.status != .connected)
+
+                    Divider().overlay(.white.opacity(0.1))
+
+                    step(2, "Measure now", "Takes an on-demand reading on the watch (about 30 seconds). Keep the watch snug and still.")
+                    Button { hub.measureSensors(["spo2", "skintemp"]) } label: {
+                        HStack {
+                            if hub.measuringSensors { ProgressView().tint(.white) }
+                            Text(hub.measuringSensors ? "Measuring on watch…" : "Measure SpO₂ & skin temp")
+                        }.frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent).tint(.red)
+                    .disabled(link.status != .connected || hub.measuringSensors)
+                }
+                .padding(16).card(cornerRadius: 22)
+
+                // ECG — shown in-app; Apple Health doesn't accept third-party ECG.
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionTitle(text: "ECG")
+                    Text("Records a single-lead ECG and shows the trace here. Not a medical device — don't use it to diagnose anything.")
+                        .font(.caption).foregroundStyle(.white.opacity(0.6))
+                    if let ecg = hub.ecg {
+                        EcgTraceView(strip: ecg)
+                            .frame(height: 120).frame(maxWidth: .infinity)
+                            .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
+                        Text(String(format: "%.0f s · %d Hz · recorded %@", ecg.durationSec, ecg.hz,
+                                    ecg.at.formatted(date: .omitted, time: .shortened)))
+                            .font(.caption2).foregroundStyle(.white.opacity(0.5))
+                    }
+                    Button { hub.measureEcg() } label: {
+                        HStack {
+                            if hub.measuringEcg { ProgressView().tint(.white) }
+                            Text(hub.measuringEcg ? "Recording on watch…" : "Record ECG")
+                        }.frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent).tint(.pink)
+                    .disabled(link.status != .connected || hub.measuringEcg)
+                }
+                .padding(16).card(cornerRadius: 22)
+
+                // Body profile — height/weight/sex/age make the BIA reading accurate.
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionTitle(text: "Body profile")
+                    Text("A body-composition reading needs your height, weight, sex and age. Load them from Apple Health or set them here, then save to the watch.")
+                        .font(.caption).foregroundStyle(.white.opacity(0.6))
+                    Stepper("Height: \(Int(heightCm)) cm", value: $heightCm, in: 100...230, step: 1).foregroundStyle(.white)
+                    Stepper("Weight: \(Int(weightKg)) kg", value: $weightKg, in: 30...250, step: 1).foregroundStyle(.white)
+                    Stepper("Age: \(age)", value: $age, in: 10...120).foregroundStyle(.white)
+                    Picker("Sex", selection: $isMale) { Text("Male").tag(true); Text("Female").tag(false) }
+                        .pickerStyle(.segmented)
+                    Button { Task { if let p = await hub.sendBiaProfileFromHealth() { prefill(p) } } } label: {
+                        Label("Load from Apple Health", systemImage: "heart.text.square").frame(maxWidth: .infinity)
+                    }.buttonStyle(.bordered).tint(.white)
+                    Button {
+                        hub.setBiaProfile(heightCm: heightCm, weightKg: weightKg, gender: isMale ? 1 : 0, age: age)
+                    } label: {
+                        Label("Save profile to watch", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent).tint(.indigo)
+                    .disabled(link.status != .connected)
+                }
+                .padding(16).card(cornerRadius: 22)
+
+                // Body composition (BIA) — fat % and lean mass go to Apple Health; rest shown here.
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionTitle(text: "Body composition")
+                    Text("Bioimpedance reading. Body-fat % and lean mass are saved to Apple Health; water, muscle and BMR are shown here.")
+                        .font(.caption).foregroundStyle(.white.opacity(0.6))
+                    if let bc = hub.bodyComposition {
+                        let rows: [(String, String)] = [
+                            ("Body fat", bc.fatPct.map { String(format: "%.1f%%", $0) } ?? "—"),
+                            ("Lean mass", bc.leanKg.map { String(format: "%.1f kg", $0) } ?? "—"),
+                            ("Skeletal muscle", bc.muscleKg.map { String(format: "%.1f kg", $0) } ?? "—"),
+                            ("Body water", bc.waterPct.map { String(format: "%.1f%%", $0) } ?? "—"),
+                            ("BMR", bc.bmr.map { String(format: "%.0f kcal", $0) } ?? "—"),
+                        ]
+                        VStack(spacing: 8) {
+                            ForEach(rows, id: \.0) { row in
+                                HStack {
+                                    Text(row.0).font(.subheadline).foregroundStyle(.white.opacity(0.75))
+                                    Spacer()
+                                    Text(row.1).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                }
+                            }
+                        }
+                    }
+                    Button { hub.measureBia() } label: {
+                        HStack {
+                            if hub.measuringBia { ProgressView().tint(.white) }
+                            Text(hub.measuringBia ? "Measuring on watch…" : "Measure body composition")
+                        }.frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent).tint(.teal)
+                    .disabled(link.status != .connected || hub.measuringBia)
+                }
+                .padding(16).card(cornerRadius: 22)
+
+                Text("Heart rate, steps, energy, distance and floors sync automatically. Sleep is estimated on the watch from heart rate and movement and written to Apple Health.")
+                    .font(.caption).foregroundStyle(.white.opacity(0.55))
+            }
+            .padding(16)
+        }
+        .auroraScreen()
+        .navigationTitle("Body sensors")
+        .navigationBarTitleDisplayMode(.inline)
+        .toast($hub.toast)
+        .onAppear { hub.requestSensors() }
+    }
+
+    private func step(_ n: Int, _ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(n)").font(.headline.weight(.bold)).foregroundStyle(.white)
+                .frame(width: 30, height: 30).background(.white.opacity(0.12), in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                Text(detail).font(.caption).foregroundStyle(.white.opacity(0.6))
+            }
+        }
+    }
+}
+
+/// Draws an ECG strip as a scaled line, auto-ranged to the signal, on a faint grid.
+struct EcgTraceView: View {
+    let strip: EcgStrip
+
+    var body: some View {
+        Canvas { ctx, size in
+            let mv = strip.millivolts
+            guard mv.count > 1 else { return }
+            // Grid.
+            let grid = Path { p in
+                let stepX = size.width / 10, stepY = size.height / 4
+                for i in 0...10 { p.move(to: CGPoint(x: CGFloat(i) * stepX, y: 0)); p.addLine(to: CGPoint(x: CGFloat(i) * stepX, y: size.height)) }
+                for i in 0...4 { p.move(to: CGPoint(x: 0, y: CGFloat(i) * stepY)); p.addLine(to: CGPoint(x: size.width, y: CGFloat(i) * stepY)) }
+            }
+            ctx.stroke(grid, with: .color(.white.opacity(0.06)), lineWidth: 1)
+            // Signal, auto-ranged with a little padding.
+            let lo = mv.min() ?? -1, hi = mv.max() ?? 1
+            let range = max(hi - lo, 0.2)
+            let pad = range * 0.1
+            func y(_ v: Double) -> CGFloat { size.height * (1 - CGFloat((v - lo + pad) / (range + 2 * pad))) }
+            let dx = size.width / CGFloat(mv.count - 1)
+            let line = Path { p in
+                p.move(to: CGPoint(x: 0, y: y(mv[0])))
+                for i in 1..<mv.count { p.addLine(to: CGPoint(x: CGFloat(i) * dx, y: y(mv[i]))) }
+            }
+            ctx.stroke(line, with: .color(.green), style: StrokeStyle(lineWidth: 1.4, lineJoin: .round))
+        }
+        .accessibilityLabel("ECG waveform, \(String(format: "%.0f", strip.durationSec)) seconds")
+    }
+}
+
 /// The face that's on the watch now, every face installed, and the watch's own picker.
-/// Wear OS doesn't let other apps switch faces, so choosing happens on the watch.
+/// Tapping an installed face applies it from the phone (classic faces switch directly; third-party
+/// Watch Face Format faces deep-link to the watch's picker, one tap).
 struct WatchFacesView: View {
     @EnvironmentObject var hub: FeatureHub
     @EnvironmentObject var link: WatchLink
+    @State private var applyTarget: FeatureHub.WatchFace?
 
     var body: some View {
         ScrollView {
@@ -479,24 +794,30 @@ struct WatchFacesView: View {
                             .font(.subheadline).foregroundStyle(.white.opacity(0.6)).padding(18)
                     }
                     ForEach(hub.faces) { f in
-                        HStack(spacing: 12) {
-                            Group {
-                                if let img = hub.facePreviews[f.id] {
-                                    Image(uiImage: img).resizable().scaledToFill()
-                                } else {
-                                    Image(systemName: "applewatch").foregroundStyle(.white.opacity(0.4))
+                        Button { if !f.active { applyTarget = f } } label: {
+                            HStack(spacing: 12) {
+                                Group {
+                                    if let img = hub.facePreviews[f.id] {
+                                        Image(uiImage: img).resizable().scaledToFill()
+                                    } else {
+                                        Image(systemName: "applewatch").foregroundStyle(.white.opacity(0.4))
+                                    }
                                 }
+                                .frame(width: 44, height: 44).background(.black).clipShape(Circle())
+                                .overlay(Circle().strokeBorder(f.active ? Theme.accent2 : .white.opacity(0.15), lineWidth: f.active ? 2.5 : 1))
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(f.name).foregroundStyle(.white)
+                                    Text(f.id).font(.caption2).foregroundStyle(.white.opacity(0.45)).lineLimit(1)
+                                }
+                                Spacer()
+                                if f.active { Text("On watch").font(.caption.weight(.semibold)).foregroundStyle(Theme.accent2) }
+                                else { Image(systemName: "arrow.up.forward.app").foregroundStyle(.white.opacity(0.4)) }
                             }
-                            .frame(width: 44, height: 44).background(.black).clipShape(Circle())
-                            .overlay(Circle().strokeBorder(f.active ? Theme.accent2 : .white.opacity(0.15), lineWidth: f.active ? 2.5 : 1))
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(f.name).foregroundStyle(.white)
-                                Text(f.id).font(.caption2).foregroundStyle(.white.opacity(0.45)).lineLimit(1)
-                            }
-                            Spacer()
-                            if f.active { Text("On watch").font(.caption.weight(.semibold)).foregroundStyle(Theme.accent2) }
+                            .padding(.horizontal, 16).padding(.vertical, 12)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.horizontal, 16).padding(.vertical, 12)
+                        .buttonStyle(.plain)
+                        .disabled(link.status != .connected)
                         if f.id != hub.faces.last?.id { Divider().padding(.leading, 72) }
                     }
                 }
@@ -513,6 +834,11 @@ struct WatchFacesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { hub.requestFaces(); hub.requestFace() }
         .refreshable { hub.requestFaces(); hub.requestFace() }
+        .confirmationDialog("Apply \(applyTarget?.name ?? "")?",
+                            isPresented: Binding(get: { applyTarget != nil }, set: { if !$0 { applyTarget = nil } }),
+                            titleVisibility: .visible) {
+            Button("Apply on watch") { if let f = applyTarget { hub.applyFace(f) } }
+        } message: { Text("Switches the watch face. A third-party face may need one tap on the watch to confirm.") }
         .toast($hub.toast)
     }
 }
@@ -617,12 +943,30 @@ struct AlarmsView: View {
 
 struct AppsView: View {
     @EnvironmentObject var hub: FeatureHub
+    @EnvironmentObject var link: WatchLink
     @State private var showSystem = false
     @State private var confirm: FeatureHub.WatchApp?
+    @State private var showInstall = false
+
+    private static let apkType = UTType(filenameExtension: "apk") ?? .data
 
     var body: some View {
         List {
             NotConnected()
+            Section {
+                Button {
+                    showInstall = true
+                } label: {
+                    HStack {
+                        Label("Install an APK on the watch", systemImage: "square.and.arrow.down.on.square")
+                        Spacer()
+                        if hub.installing { ProgressView() }
+                    }
+                }
+                .disabled(link.status != .connected || hub.installing)
+            } footer: {
+                Text("Pick an .apk from Files; it's sent over Bluetooth and you confirm the install on the watch. Enable \"Install unknown apps\" for Wear OS Bridge on the watch first.")
+            }
             Toggle("Show system apps", isOn: $showSystem)
             ForEach(hub.apps.filter { showSystem || !$0.system }) { app in
                 HStack {
@@ -649,6 +993,9 @@ struct AppsView: View {
                             titleVisibility: .visible) {
             Button("Uninstall", role: .destructive) { if let a = confirm { hub.uninstall(a.id) } }
         } message: { Text("You'll confirm on the watch.") }
+        .fileImporter(isPresented: $showInstall, allowedContentTypes: [Self.apkType, .data], allowsMultipleSelection: false) { result in
+            if case let .success(urls) = result, let url = urls.first { hub.installApk(url) }
+        }
         .toast($hub.toast)
     }
 }
@@ -727,6 +1074,65 @@ struct WorkoutsInfoView: View {
         }
         .auroraScreen()
         .navigationTitle("Workouts")
+    }
+}
+
+/// Place/answer/reject/hang up calls with the audio on the watch (HFP), and how texts work.
+/// Call control needs a classic-Bluetooth hands-free bond between the watch and iPhone, which is
+/// separate from the Wear OS Bridge (BLE) connection.
+struct CallsView: View {
+    @EnvironmentObject var hub: FeatureHub
+    @EnvironmentObject var link: WatchLink
+    @State private var number = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                SectionTitle(text: "Calls on the watch")
+                Text("Answer, reject, hang up or place calls with the call audio on your watch, over its hands-free link to your iPhone.")
+                    .font(.callout).foregroundStyle(.white.opacity(0.75))
+
+                VStack(alignment: .leading, spacing: 14) {
+                    TextField("Phone number", text: $number)
+                        .keyboardType(.phonePad)
+                        .textFieldStyle(.roundedBorder)
+                    Button { hub.call("dial", number: number) } label: {
+                        Label("Call on watch", systemImage: "phone.arrow.up.right.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent).tint(.green)
+                    .disabled(link.status != .connected || number.isEmpty)
+
+                    Divider().overlay(.white.opacity(0.1))
+
+                    HStack(spacing: 12) {
+                        Button { hub.call("answer") } label: { Label("Answer", systemImage: "phone.fill").frame(maxWidth: .infinity) }
+                            .buttonStyle(.borderedProminent).tint(.green)
+                        Button { hub.call("reject") } label: { Label("Reject", systemImage: "phone.down.fill").frame(maxWidth: .infinity) }
+                            .buttonStyle(.borderedProminent).tint(.red)
+                    }
+                    Button { hub.call("hangup") } label: { Label("Hang up", systemImage: "phone.down.fill").frame(maxWidth: .infinity) }
+                        .buttonStyle(.bordered).tint(.white)
+                }
+                .padding(16).card(cornerRadius: 22)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionTitle(text: "Texts")
+                    Label("Incoming texts appear as notifications on the watch, like your other iPhone notifications.", systemImage: "bubble.left.fill")
+                        .font(.callout).foregroundStyle(.white.opacity(0.75))
+                    Label("To send a text, use Siri on the watch — iOS sends it over the hands-free link. The app never injects messages silently.", systemImage: "mic.fill")
+                        .font(.callout).foregroundStyle(.white.opacity(0.75))
+                }
+                .padding(16).card(cornerRadius: 22)
+
+                Text("Calls use a classic-Bluetooth hands-free pairing between the watch and iPhone, which is separate from the Wear OS Bridge connection and is set up in the watch's Bluetooth settings.")
+                    .font(.caption).foregroundStyle(.white.opacity(0.55))
+            }
+            .padding(16)
+        }
+        .auroraScreen()
+        .navigationTitle("Calls & texts")
+        .navigationBarTitleDisplayMode(.inline)
+        .toast($hub.toast)
     }
 }
 

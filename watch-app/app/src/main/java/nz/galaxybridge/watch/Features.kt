@@ -25,7 +25,9 @@ object Features {
     val FROM_PHONE = setOf(
         "contacts", "mute", "reminders", "alarm", "timer", "uninstall", "openStore", "launch",
         "getApps", "getSounds", "setSound", "photo", "getRecordings", "getRecording", "workoutAck",
-        "camFrame", "camState", "getNotifApps", "getFace", "getFaces", "openFacePicker", "setDesign", "getDesign",
+        "camFrame", "camState", "getNotifApps", "getFace", "getFaces", "openFacePicker", "applyFace", "setDesign", "getDesign",
+        "getSensors", "measureSensors", "openSensorSettings", "measureEcg", "measureBia",
+        "install", "setBiaProfile", "call",
     )
 
     private val PACKAGE = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z0-9_]+)+$")
@@ -60,6 +62,16 @@ object Features {
                 "setDesign" -> WatchFaces.setDesign(s, j)
                 "getDesign" -> s.send(WatchMessages.feature("design", WatchFaces.designState(s)))
                 "openFacePicker" -> result(s, "facePicker", WatchFaces.openPicker(s), "Choose a face on your watch")
+                "applyFace" -> applyFace(s, j)
+                "install" -> Installer.receive(s, j)
+                "setBiaProfile" -> setBiaProfile(s, j)
+                "call" -> call(s, j)
+                "getSensors" -> s.send(WatchMessages.feature("sensors", JSONObject().put("available", SensorBridge.isAvailable(s))))
+                "openSensorSettings" -> result(s, "sensorSettings", SensorBridge.openDeveloperModeSettings(s),
+                    "Turn on Developer mode in Samsung Health on your watch")
+                "measureSensors" -> measureSensors(s, j)
+                "measureEcg" -> measureEcg(s)
+                "measureBia" -> measureBia(s)
             }
         }.onFailure { Log.w(TAG, "feature $type failed", it) }
     }
@@ -68,6 +80,107 @@ object Features {
         s.send(WatchMessages.feature("result", JSONObject().put("what", what).put("ok", ok).put("detail", detail.take(120))))
 
     private fun pkg(j: JSONObject): String? = j.optString("pkg").takeIf { it.length <= 200 && PACKAGE.matches(it) }
+
+    private val CLASS_NAME = Regex("^[a-zA-Z][a-zA-Z0-9_.$]*$")
+    private val PHONE_NUMBER = Regex("^[0-9+][0-9*#+ ().-]{0,31}$")
+
+    /** Applies any installed face from the phone (classic via EDIT_WATCH_FACE, WFF via deep-link). */
+    private fun applyFace(s: LinkService, j: JSONObject) {
+        val p = pkg(j) ?: return result(s, "applyFace", false, "")
+        val cls = j.optString("cls").takeIf { it.isEmpty() || (it.length <= 200 && CLASS_NAME.matches(it)) } ?: return
+        val ok = WatchFaces.apply(s, p, cls)
+        result(s, "applyFace", ok, if (ok) "Applying the face on your watch" else "Couldn't switch faces")
+    }
+
+    /** Stores the user's body profile for BIA (height cm, weight kg, gender 1=male/0=female, age). */
+    private fun setBiaProfile(s: LinkService, j: JSONObject) {
+        val height = j.optDouble("height", Double.NaN)
+        val weight = j.optDouble("weight", Double.NaN)
+        val gender = j.optInt("gender", -1)
+        val age = j.optInt("age", -1)
+        if (!height.isFinite() || !weight.isFinite()) return result(s, "biaProfile", false, "")
+        val ok = SensorBridge.setProfile(s, height.toFloat(), weight.toFloat(), gender, age)
+        result(s, "biaProfile", ok, if (ok) "Body profile saved on your watch" else "Profile values out of range")
+    }
+
+    /** Call control over HFP: place/answer/reject/hang up. See CallAudio (needs a classic-BT bond). */
+    private fun call(s: LinkService, j: JSONObject) {
+        val action = when (j.optString("action")) {
+            "dial" -> CallAudio.Action.DIAL
+            "answer" -> CallAudio.Action.ANSWER
+            "reject" -> CallAudio.Action.REJECT
+            "hangup" -> CallAudio.Action.HANGUP
+            else -> return
+        }
+        val number = j.optString("number").takeIf { it.isEmpty() || PHONE_NUMBER.matches(it) } ?: return
+        if (action == CallAudio.Action.DIAL && number.isEmpty()) return result(s, "call", false, "No number to dial")
+        CallAudio.control(s, action, number)
+        result(s, "call", true, "Sent to your watch")
+    }
+
+    /** The SpO2/skin-temp sensors the phone asked for (defaults to SpO2). */
+    internal fun sensorKinds(j: JSONObject): Set<SampleKind> {
+        val wanted = j.optJSONArray("sensors")
+        return buildSet {
+            if (wanted == null) add(SampleKind.SPO2)
+            else for (i in 0 until wanted.length()) when (wanted.optString(i)) {
+                "spo2" -> add(SampleKind.SPO2)
+                "skintemp" -> add(SampleKind.SKIN_TEMP)
+            }
+        }
+    }
+
+    /**
+     * Reads the Samsung-only sensors on demand (SpO2, skin temperature) and syncs them. The
+     * measurement runs in our own [MeasureActivity] on the watch so the user sees a progress panel
+     * and the result; if that activity can't be launched, it falls back to a headless capture. The
+     * same "result" message goes to the phone either way.
+     */
+    private fun measureSensors(s: LinkService, j: JSONObject) {
+        val kinds = sensorKinds(j)
+        if (kinds.isEmpty() || !SensorBridge.isAvailable(s)) {
+            return result(s, "sensors", false, "Samsung health sensors aren't available on this watch")
+        }
+        if (!MeasureActivity.launch(s, MeasureActivity.KIND_SENSORS, kinds.map { it.wire })) {
+            SensorBridge.measure(s, kinds) { ok -> sendSensorsResult(s, ok) }
+        }
+    }
+
+    private fun measureEcg(s: LinkService) {
+        if (!SensorBridge.isAvailable(s)) return result(s, "ecg", false, "ECG isn't available on this watch")
+        if (!MeasureActivity.launch(s, MeasureActivity.KIND_ECG)) {
+            SensorBridge.captureEcg(s) { hz, uv -> sendEcgResult(s, hz, uv) }
+        }
+    }
+
+    private fun measureBia(s: LinkService) {
+        if (!SensorBridge.isAvailable(s)) return result(s, "bia", false, "Body composition isn't available on this watch")
+        if (!MeasureActivity.launch(s, MeasureActivity.KIND_BIA)) {
+            SensorBridge.captureBia(s) { values -> sendBiaResult(s, values) }
+        }
+    }
+
+    // --- Result messages to the phone; shared by the headless path and MeasureActivity. ---
+
+    internal fun sendSensorsResult(s: LinkService, ok: Boolean) =
+        result(s, "sensors", ok, if (ok) "Reading synced to Apple Health" else "No reading; check Developer mode and permissions")
+
+    /** Records an ECG strip and sends the waveform to the iPhone for display (not to Apple Health). */
+    internal fun sendEcgResult(s: LinkService, hz: Int, uv: ShortArray) {
+        if (uv.isEmpty()) return result(s, "ecg", false, "No ECG captured; keep still with a finger on the bezel")
+        val bytes = java.nio.ByteBuffer.allocate(uv.size * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        for (v in uv) bytes.putShort(v)
+        s.send(WatchMessages.feature("ecg", JSONObject()
+            .put("hz", hz).put("n", uv.size).put("start", System.currentTimeMillis())
+            .put("uv", android.util.Base64.encodeToString(bytes.array(), android.util.Base64.NO_WRAP))))
+    }
+
+    internal fun sendBiaResult(s: LinkService, values: Map<String, Double>) {
+        if (values.isEmpty()) return result(s, "bia", false, "No reading; hold two fingers on the buttons and stay still")
+        val body = JSONObject().put("at", System.currentTimeMillis())
+        for ((k, v) in values) body.put(k, v)
+        s.send(WatchMessages.feature("bia", body))
+    }
 
     // --- Notifications: per-app and per-category filtering ---
 
