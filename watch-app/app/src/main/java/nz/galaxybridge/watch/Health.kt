@@ -33,6 +33,18 @@ object Health {
         client.setPassiveListenerServiceAsync(HealthListenerService::class.java, config).await()
     }
 
+    /**
+     * Forces Health Services to deliver any passive data it is holding right now. Passive delivery
+     * is otherwise batched on the system's own (slow) schedule, so without this a short walk's steps
+     * can sit undelivered for many minutes. Called when the phone connects so the iPhone gets
+     * today's data promptly.
+     */
+    suspend fun flush(context: Context) {
+        runCatching {
+            HealthServices.getClient(context).passiveMonitoringClient.flushAsync().await()
+        }
+    }
+
     fun toSamples(data: DataPointContainer): List<HealthSample> {
         val boot = Instant.ofEpochMilli(System.currentTimeMillis() - SystemClock.elapsedRealtime())
         val out = ArrayList<HealthSample>()

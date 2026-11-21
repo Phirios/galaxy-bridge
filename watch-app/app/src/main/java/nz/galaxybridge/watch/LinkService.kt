@@ -436,6 +436,9 @@ class LinkService : Service() {
                 battery.value = batteryPercent()
                 send(WatchMessages.battery(batteryPercent()))
                 flushQueue()
+                // Push any passive health data Health Services is still batching, so today's steps
+                // and HR reach the phone now instead of on the system's slow delivery schedule.
+                scope.launch(Dispatchers.IO) { Health.flush(this@LinkService) }
                 sendStatus()
                 Workouts.flush(this@LinkService)
                 if (device.bondState == BluetoothDevice.BOND_BONDED) {

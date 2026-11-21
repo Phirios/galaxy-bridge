@@ -158,7 +158,7 @@ class MainActivity : ComponentActivity() {
         LinkService.start(this)
         askToIgnoreBatteryOptimisation()
         if (checkSelfPermission(Manifest.permission.BODY_SENSORS) == PackageManager.PERMISSION_GRANTED) {
-            lifecycleScope.launch { runCatching { Health.register(this@MainActivity) } }
+            lifecycleScope.launch { runCatching { Health.register(this@MainActivity); Health.flush(this@MainActivity) } }
         }
     }
 
