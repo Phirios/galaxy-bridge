@@ -82,7 +82,10 @@ object SensorBridge {
             onDone = { _ ->
                 val snapshot = synchronized(results) { ArrayList(results) }
                 if (snapshot.isNotEmpty()) {
-                    SampleQueue(ctx.filesDir).add(snapshot.filter { it.isPlausible() && WatchSettings.syncs(ctx, it.kind) })
+                    // The user explicitly asked for this reading, so always send it — don't drop it
+                    // on the background-sync toggle (e.g. SpO2 sync defaults off). Only reject values
+                    // that are physically implausible.
+                    SampleQueue(ctx.filesDir).add(snapshot.filter { it.isPlausible() })
                     LinkService.samplesQueued()
                 }
                 runCatching { onSamples?.invoke(snapshot) }

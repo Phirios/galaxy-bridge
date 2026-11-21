@@ -16,6 +16,9 @@ final class HealthSync: ObservableObject {
     @Published var lastWorkout: String?
 
     private let store = HKHealthStore()
+    /// One-shot: prompt for Apple Health access the first time a batch needs it, in case the
+    /// launch prompt was missed or dismissed.
+    private var didPromptHealth = false
 
     private static let sleepType = HKCategoryType(.sleepAnalysis)
 
@@ -92,18 +95,25 @@ final class HealthSync: ObservableObject {
     /// Returns true once the batch is settled: every sample is stored, or belongs to a type the
     /// user chose not to share. Returns false (so the watch keeps it) if Health hasn't been set up.
     func save(batchId: String, _ items: [HealthSample]) async -> Bool {
+        // Show the readings in the app immediately, from what the watch sent — independent of
+        // Apple Health. The watch is the source of these values, so the dashboard must reflect them
+        // even when Health access is still pending or was declined. add() dedups by batch id, so a
+        // batch re-sent after a lost ack won't double-count.
+        summary.add(batchId: batchId, items)
+        summary.save()
+        lastSync = Date()
+
         let device = HKDevice(name: "Galaxy Watch", manufacturer: "Samsung", model: nil,
                               hardwareVersion: nil, firmwareVersion: nil, softwareVersion: nil,
                               localIdentifier: nil, udiDeviceIdentifier: nil)
         var samples: [HKSample] = []
+        var pendingAuth = false
         for item in items {
             let type = Self.objectType(for: item.kind)
             switch store.authorizationStatus(for: type) {
             case .sharingAuthorized: break
             case .sharingDenied: continue // The user's choice; drop rather than retry forever.
-            default:
-                lastError = "Allow Wear OS Bridge to write to Apple Health"
-                return false
+            default: pendingAuth = true; continue // Not asked yet: don't block display; keep the batch.
             }
             let metadata: [String: Any] = [
                 HKMetadataKeySyncIdentifier: "gb-\(item.kind.rawValue)-\(item.start)-\(item.end)",
@@ -120,15 +130,18 @@ final class HealthSync: ObservableObject {
                     start: item.startDate, end: item.endDate, device: device, metadata: metadata))
             }
         }
-        if samples.isEmpty { return true }
+        // Apple Health hasn't been granted yet: the data is already on-screen, so surface the
+        // access prompt once and keep the batch so it also lands in Health once allowed.
+        if pendingAuth, !didPromptHealth {
+            didPromptHealth = true
+            await requestAccess()
+        }
+        guard !samples.isEmpty else { return !pendingAuth }
         do {
             try await store.save(samples)
-            summary.add(batchId: batchId, items)
-            summary.save()
             savedCount += samples.count
-            lastSync = Date()
             lastError = nil
-            return true
+            return !pendingAuth
         } catch {
             lastError = error.localizedDescription
             return false

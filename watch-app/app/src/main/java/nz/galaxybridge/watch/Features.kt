@@ -122,10 +122,14 @@ object Features {
     internal fun sensorKinds(j: JSONObject): Set<SampleKind> {
         val wanted = j.optJSONArray("sensors")
         return buildSet {
+            // Always capture a live heart rate alongside whatever else was asked, so a tap on
+            // "Measure" returns a current HR to the phone even when passive HR isn't being delivered.
+            add(SampleKind.HEART_RATE)
             if (wanted == null) add(SampleKind.SPO2)
             else for (i in 0 until wanted.length()) when (wanted.optString(i)) {
                 "spo2" -> add(SampleKind.SPO2)
                 "skintemp" -> add(SampleKind.SKIN_TEMP)
+                "hr" -> add(SampleKind.HEART_RATE)
             }
         }
     }

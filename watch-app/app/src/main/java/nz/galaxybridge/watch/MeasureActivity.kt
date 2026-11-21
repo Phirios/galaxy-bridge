@@ -112,6 +112,7 @@ class MeasureActivity : ComponentActivity() {
             .ifEmpty { setOf(SampleKind.SPO2) }
         SensorBridge.measure(this, kinds, onSamples = { samples ->
             val parts = ArrayList<String>()
+            samples.lastOrNull { it.kind == SampleKind.HEART_RATE }?.let { parts.add("HR ${it.value.toInt()} bpm") }
             samples.lastOrNull { it.kind == SampleKind.SPO2 }?.let { parts.add("SpO₂ ${it.value.toInt()}%") }
             samples.lastOrNull { it.kind == SampleKind.SKIN_TEMP }?.let { parts.add("Skin %.1f°C".format(it.value)) }
             if (parts.isNotEmpty()) show(parts.joinToString(" · "), "Measuring SpO₂ & skin temp")
