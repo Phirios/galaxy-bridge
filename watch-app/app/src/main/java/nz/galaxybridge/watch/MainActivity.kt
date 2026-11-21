@@ -122,6 +122,8 @@ class MainActivity : ComponentActivity() {
         Manifest.permission.BLUETOOTH_CONNECT,
         Manifest.permission.BLUETOOTH_ADVERTISE,
         Manifest.permission.BODY_SENSORS,
+        // Health Services won't deliver passive heart-rate data without this granted on Wear OS 5+.
+        "android.permission.health.READ_HEART_RATE",
         Manifest.permission.ACTIVITY_RECOGNITION,
         Manifest.permission.POST_NOTIFICATIONS,
         Manifest.permission.ACCESS_FINE_LOCATION,
