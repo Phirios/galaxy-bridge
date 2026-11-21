@@ -172,6 +172,7 @@ class LinkService : Service() {
     lateinit var apple: AppleClient
     lateinit var notifier: PhoneNotifier
     private lateinit var media: MediaBridge
+    private lateinit var steps: StepCounter
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var phone: BluetoothDevice? = null
@@ -198,6 +199,8 @@ class LinkService : Service() {
         advertise()
         hid = HidShutter(this) { getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_TRUSTED, null) }
         hid.start()
+        steps = StepCounter(this)
+        steps.start()
         notifier = PhoneNotifier(this)
         apple = AppleClient(this,
             onNotification = { e, d, app -> if (Features.allowNotification(this, e, d, app)) notifier.post(e, d, app) },
@@ -231,6 +234,7 @@ class LinkService : Service() {
         apple.close()
         media.release()
         hid.stop()
+        steps.stop()
         manager.adapter?.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
         server?.close()
         instance = null
@@ -482,7 +486,12 @@ class LinkService : Service() {
                 is PhoneMessage.Find -> ring(m.on)
                 // A refused change (permission not granted) still replies, so the phone shows the real value.
                 is PhoneMessage.Set -> if (!WatchSettings.set(this@LinkService, m.key, m.value)) sendStatus()
-                PhoneMessage.GetStatus -> sendStatus()
+                PhoneMessage.GetStatus -> {
+                    // The iPhone asks for status whenever it opens/foregrounds; flush passive health
+                    // data then too, so the step/HR counts are current each time the user looks.
+                    scope.launch(Dispatchers.IO) { Health.flush(this@LinkService) }
+                    sendStatus()
+                }
                 is PhoneMessage.PhoneBattery -> { phoneBattery.value = m; PhoneInfo.save(this@LinkService, m); Tiles.refresh(this@LinkService) }
                 is PhoneMessage.Weather -> { weather.value = m; PhoneInfo.save(this@LinkService, m); Tiles.refresh(this@LinkService) }
                 is PhoneMessage.Events -> { events.value = m.items; PhoneInfo.save(this@LinkService, m); Tiles.refresh(this@LinkService) }

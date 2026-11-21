@@ -17,7 +17,8 @@ import java.time.Instant
 object Health {
     private val TYPES = setOf(
         DataType.HEART_RATE_BPM,
-        DataType.STEPS,
+        // STEPS comes from the hardware step counter (StepCounter.kt), which matches the watch's own
+        // step widget; Health Services' passive step stream under-reports, so it's excluded here.
         DataType.CALORIES,
         DataType.DISTANCE,
         DataType.FLOORS,
