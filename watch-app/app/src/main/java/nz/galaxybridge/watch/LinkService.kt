@@ -221,11 +221,13 @@ class LinkService : Service() {
         // so re-registering is harmless/idempotent.
         scope.launch(Dispatchers.IO) { runCatching { Health.register(this@LinkService) } }
         status.value = Status.WAITING
+        WaveD.onServiceCreate(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
+        WaveD.onServiceDestroy(this)
         scope.cancel()
         runCatching { unregisterReceiver(bondReceiver) }
         runCatching { unregisterReceiver(faceReceiver) }

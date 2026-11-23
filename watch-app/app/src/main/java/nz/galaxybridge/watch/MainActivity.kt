@@ -220,6 +220,7 @@ class MainActivity : ComponentActivity() {
         }
         item { WeatherCard() }
         item { AgendaCard() }
+        item { ExtrasEntryChip() }
     }
 
     @Composable
@@ -334,6 +335,8 @@ class MainActivity : ComponentActivity() {
     private fun ScalingLazyListScope.musicPage() {
         item { PageTitle("Music") }
         item { MusicControls() }
+        item { ExtrasEntryChip(ExtrasActivity.PAGE_MEDIA, "More controls", "Seek, like, skip 15 s") }
+        item { ExtrasEntryChip(ExtrasActivity.PAGE_MUSIC, "Music on watch", "Play offline to earbuds") }
     }
 
     @Composable
