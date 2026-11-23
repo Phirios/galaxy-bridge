@@ -254,13 +254,9 @@
             android:name=".CallsActivity"
             android:icon="@mipmap/ic_launcher_phone"
             android:roundIcon="@mipmap/ic_launcher_phone"
-            android:exported="true"
+            android:exported="false"
             android:label="Phone"
             android:taskAffinity="nz.galaxybridge.watch.calls">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
         </activity>
 
         <!-- Launcher entry that starts the cancellable SOS countdown; can be mapped to a key double-press. -->

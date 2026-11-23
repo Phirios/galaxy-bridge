@@ -217,7 +217,10 @@ class MainActivity : ComponentActivity() {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Launcher(R.drawable.ic_camera, "Camera", Accent2, Color(0xFF1E5BB8)) { page = PAGE_CAMERA }
                 Launcher(R.drawable.ic_phone, "Phone", Color(0xFF1DB954), Color(0xFF0E8A3E)) {
-                    startActivity(Intent(this@MainActivity, CallsActivity::class.java))
+                    // The watch's own Samsung Phone app calls through the iPhone over hands-free;
+                    // fall back to our dialer only if it is missing.
+                    val samsung = packageManager.getLaunchIntentForPackage("com.samsung.android.dialer")
+                    startActivity(samsung ?: Intent(this@MainActivity, CallsActivity::class.java))
                 }
                 Launcher(R.drawable.ic_find, "Find", Wait, Color(0xFFFF7A2E)) { page = PAGE_FIND }
             }
