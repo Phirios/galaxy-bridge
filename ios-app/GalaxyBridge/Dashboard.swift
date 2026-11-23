@@ -280,9 +280,11 @@ private struct InfoGrid: View {
 private struct HealthView: View {
     @EnvironmentObject var health: HealthSync
     @EnvironmentObject var hub: FeatureHub
+    @ObservedObject private var depth = HealthDepthStore.shared
 
     var body: some View {
         let s = health.summary
+        let goal = depth.config
         ScrollView {
             VStack(spacing: 18) {
                 VStack(spacing: 4) {
@@ -300,7 +302,7 @@ private struct HealthView: View {
                 .padding(.top, 10)
 
                 ZStack {
-                    ActivityRings(rings: [(s.energy / 500, Theme.energy), (s.steps / 10_000, Theme.steps), (s.distance / 8_000, Theme.distance)],
+                    ActivityRings(rings: [(s.energy / Double(goal.goalKcal), Theme.energy), (s.steps / Double(goal.goalSteps), Theme.steps), (s.distance / 8_000, Theme.distance)],
                                   lineWidth: 22)
                         .frame(width: 230, height: 230)
                     VStack(spacing: 0) {
@@ -313,9 +315,9 @@ private struct HealthView: View {
 
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                     MetricTile(title: "Active energy", symbol: "flame.fill", color: Theme.energy,
-                               value: s.energy.formatted(.number.precision(.fractionLength(0))), unit: "of 500 kcal")
+                               value: s.energy.formatted(.number.precision(.fractionLength(0))), unit: "of \(goal.goalKcal) kcal")
                     MetricTile(title: "Steps", symbol: "figure.walk", color: Theme.steps,
-                               value: s.steps.formatted(.number.precision(.fractionLength(0))), unit: "of 10,000")
+                               value: s.steps.formatted(.number.precision(.fractionLength(0))), unit: "of \(goal.goalSteps.formatted())")
                     MetricTile(title: "Distance", symbol: "location.north.line.fill", color: Theme.distance,
                                value: (s.distance / 1000).formatted(.number.precision(.fractionLength(2))), unit: "km")
                     MetricTile(title: "Heart rate", symbol: "heart.fill", color: Theme.heart,
@@ -328,6 +330,17 @@ private struct HealthView: View {
                                value: s.restingHeartRate.map { "\(Int($0.rounded()))" } ?? "–", unit: "bpm")
                     MetricTile(title: "Floors", symbol: "figure.stairs", color: Theme.distance,
                                value: s.floors.formatted(.number.precision(.fractionLength(0))), unit: "climbed")
+                    MetricTile(title: "HRV", symbol: "waveform.path.ecg", color: Theme.accent3,
+                               value: depth.latestHrv.map { "\(Int($0.sdnn.rounded()))" } ?? "–", unit: "ms",
+                               footnote: depth.latestHrv.map { $0.at.formatted(.relative(presentation: .named)) })
+                    MetricTile(title: "Stress", symbol: "brain.head.profile", color: .purple,
+                               value: depth.latestHrv?.stress.map(String.init) ?? "–", unit: depth.latestHrv?.stressLabel ?? "estimate")
+                    MetricTile(title: "Water", symbol: "drop.fill", color: .cyan,
+                               value: "\(Int(depth.today.waterMl.rounded()))", unit: "ml")
+                    MetricTile(title: "Sleeping HR", symbol: "bed.double.fill", color: .indigo,
+                               value: depth.today.sleepingHR.isEmpty ? "–"
+                                   : "\(Int((depth.today.sleepingHR.reduce(0, +) / Double(depth.today.sleepingHR.count)).rounded()))",
+                               unit: "bpm")
                 }
 
                 SyncCard()
@@ -336,6 +349,10 @@ private struct HealthView: View {
                 FeatureTileGrid(items: [
                     FeatureTile(title: "Body sensors", sub: "SpO₂, ECG, body comp", symbol: "heart.text.square.fill", color: .red, dest: AnyView(BodySensorsView())),
                     FeatureTile(title: "Workouts", sub: "Saved to Health", symbol: "figure.run", color: .green, dest: AnyView(WorkoutsInfoView())),
+                    FeatureTile(title: "Stress & HRV", sub: "Measure, estimate", symbol: "waveform.path.ecg", color: .purple, dest: AnyView(StressHrvView())),
+                    FeatureTile(title: "Goals & reminders", sub: "Rings, move, water", symbol: "target", color: .orange, dest: AnyView(GoalsRemindersView())),
+                    FeatureTile(title: "Water & caffeine", sub: "Log intake", symbol: "drop.fill", color: .cyan, dest: AnyView(IntakeView())),
+                    FeatureTile(title: "Cycle tracking", sub: "Period, symptoms", symbol: "calendar.circle.fill", color: .pink, dest: AnyView(CycleView())),
                 ])
                 if !health.authorized { HealthAccessCard() }
             }

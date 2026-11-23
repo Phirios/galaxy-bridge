@@ -148,6 +148,20 @@ struct WatchSettingsView: View {
             }
 
             Section {
+                NavigationLink { BackgroundReadingsView() } label: {
+                    sensorRow("Automatic & overnight readings", symbol: "clock.arrow.circlepath", color: .purple,
+                              detail: HealthDepthStore.shared.config.autoLog || HealthDepthStore.shared.config.overnight ? "On" : "Off")
+                }
+                NavigationLink { GoalsRemindersView() } label: {
+                    sensorRow("Goals & reminders", symbol: "target", color: .orange, detail: "")
+                }
+            } header: {
+                Text("Health extras")
+            } footer: {
+                Text("HRV and sleeping heart rate follow the Heart rate toggle. Water, caffeine and cycle entries you log always go to Apple Health.")
+            }
+
+            Section {
                 NavigationLink {
                     BodySensorsView()
                 } label: {
