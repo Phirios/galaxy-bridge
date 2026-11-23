@@ -29,6 +29,8 @@ object Features {
         "getSensors", "measureSensors", "openSensorSettings", "measureEcg", "measureBia",
         "install", "setBiaProfile", "call",
         "callFavourites", "callLogGet", "safetyConfig", "safetyGet", "findLoud", "quickReplies",
+        // Wave C (health depth)
+        "hdConfig", "hdGetState", "hdMeasureHrv",
     )
 
     private val PACKAGE = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z0-9_]+)+$")
@@ -75,6 +77,7 @@ object Features {
                 "measureBia" -> measureBia(s)
                 "callFavourites", "callLogGet", "safetyConfig", "safetyGet", "findLoud", "quickReplies" ->
                     CallsSafety.handle(s, type, j)
+                "hdConfig", "hdGetState", "hdMeasureHrv" -> HealthDepth.handle(s, type, j)
             }
         }.onFailure { Log.w(TAG, "feature $type failed", it) }
     }

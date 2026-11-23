@@ -93,6 +93,18 @@ object SensorBridge {
             }).start()
     }
 
+    /**
+     * Raw stream of tracker points for [durationMs], for callers that need more than one scalar
+     * per point (HRV from the HEART_RATE tracker's IBI list, background logging — Hrv.kt, AutoLog.kt).
+     * Nothing is enqueued here; the caller decides what to keep.
+     */
+    fun stream(ctx: Context, kinds: Set<SampleKind>, durationMs: Long,
+               onPoint: (SampleKind, ServiceDataPoint) -> Unit, done: (Boolean) -> Unit) {
+        val specs = kinds.mapNotNull { k -> trackerType(k)?.let { k to it } }
+        if (specs.isEmpty()) return done(false)
+        Session(ctx, specs, null, durationMs, onData = onPoint, onDone = done).start()
+    }
+
     /** Records an ECG strip; reports the sample rate and a relative waveform (display only). */
     fun captureEcg(ctx: Context, durationMs: Long = 30_000, done: (hz: Int, microvolts: ShortArray) -> Unit) {
         // Each ECG sample is in serviceValue[0], a single ServiceValue carrying BOTH fields:

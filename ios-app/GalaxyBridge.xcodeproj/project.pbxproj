@@ -25,6 +25,8 @@
 		A1000000000000000000F004 /* FaceSpecs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000F004 /* FaceSpecs.swift */; };
 		B10000000000000000000001 /* CallsSafety.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* CallsSafety.swift */; };
 		B10000000000000000000002 /* CallsSafetyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* CallsSafetyViews.swift */; };
+		C10000000000000000000001 /* HealthDepth.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* HealthDepth.swift */; };
+		C10000000000000000000002 /* HealthDepthViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000002 /* HealthDepthViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -48,6 +50,8 @@
 		A2000000000000000000F004 /* FaceSpecs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceSpecs.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* CallsSafety.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallsSafety.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* CallsSafetyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallsSafetyViews.swift; sourceTree = "<group>"; };
+		C20000000000000000000001 /* HealthDepth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDepth.swift; sourceTree = "<group>"; };
+		C20000000000000000000002 /* HealthDepthViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDepthViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +104,8 @@
 				A2000000000000000000000C /* WatchSettingsView.swift */,
 				B20000000000000000000001 /* CallsSafety.swift */,
 				B20000000000000000000002 /* CallsSafetyViews.swift */,
+				C20000000000000000000001 /* HealthDepth.swift */,
+				C20000000000000000000002 /* HealthDepthViews.swift */,
 				A2000000000000000000000A /* Assets.xcassets */,
 				A20000000000000000000005 /* Info.plist */,
 				A20000000000000000000006 /* GalaxyBridge.entitlements */,
@@ -190,6 +196,8 @@
 				A1000000000000000000000A /* WatchSettingsView.swift in Sources */,
 				B10000000000000000000001 /* CallsSafety.swift in Sources */,
 				B10000000000000000000002 /* CallsSafetyViews.swift in Sources */,
+				C10000000000000000000001 /* HealthDepth.swift in Sources */,
+				C10000000000000000000002 /* HealthDepthViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -303,7 +311,7 @@
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "The camera lets your watch act as a remote shutter.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Wear OS Bridge reads your height, weight, sex and age to improve the watch's body-composition reading; it does not read any other health data.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Wear OS Bridge saves heart rate, steps, energy, distance, floors and workouts from your Galaxy Watch to Apple Health.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Wear OS Bridge saves heart rate, HRV, steps, energy, distance, floors, workouts, sleep and other readings from your Galaxy Watch to Apple Health, plus the water, caffeine and cycle entries you log.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Photos you take with the watch shutter are saved to your library.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -339,7 +347,7 @@
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "The camera lets your watch act as a remote shutter.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Wear OS Bridge reads your height, weight, sex and age to improve the watch's body-composition reading; it does not read any other health data.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Wear OS Bridge saves heart rate, steps, energy, distance, floors and workouts from your Galaxy Watch to Apple Health.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Wear OS Bridge saves heart rate, HRV, steps, energy, distance, floors, workouts, sleep and other readings from your Galaxy Watch to Apple Health, plus the water, caffeine and cycle entries you log.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Photos you take with the watch shutter are saved to your library.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (

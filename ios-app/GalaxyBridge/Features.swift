@@ -110,6 +110,7 @@ final class FeatureHub: ObservableObject {
         post("getNotifApps")
         post("getFace")
         CallsSafetyStore.shared.onConnected(self)
+        HealthDepthStore.shared.onConnected(self)
     }
 
     // MARK: Incoming
@@ -230,6 +231,8 @@ final class FeatureHub: ObservableObject {
             toast = detail.isEmpty ? (ok ? "Done on watch" : "The watch couldn't do that") : detail
         case "callLog", "safetyState", "sosAlert", "hrAlert", "findLoud", "quickReply":
             CallsSafetyStore.shared.handle(type, b, hub: self)
+        case "hrvResult", "hdState":
+            HealthDepthStore.shared.handle(type, b)
         default: break
         }
     }

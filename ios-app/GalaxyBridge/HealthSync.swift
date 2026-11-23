@@ -34,12 +34,14 @@ final class HealthSync: ObservableObject {
         case .spo2: return HKQuantityType(.oxygenSaturation)
         case .skinTemp: return HKQuantityType(.bodyTemperature)
         case .sleep: return nil
+        case .hrv, .water, .caffeine, .sleepingHeartRate: return HealthDepthHK.quantityType(for: kind)
+        case .menstrualFlow: return nil
         }
     }
 
     /// The object type used for authorization (quantity, or the sleep category type).
     private static func objectType(for kind: SampleKind) -> HKSampleType {
-        quantityType(for: kind) ?? sleepType
+        quantityType(for: kind) ?? (kind == .menstrualFlow ? HealthDepthHK.flowType : sleepType)
     }
 
     /// Builds the HealthKit quantity for a kind, converting units where HealthKit differs from the
@@ -54,6 +56,9 @@ final class HealthSync: ObservableObject {
         case .spo2: return HKQuantity(unit: .percent(), doubleValue: value / 100)
         case .skinTemp: return HKQuantity(unit: .degreeCelsius(), doubleValue: value)
         case .sleep: return HKQuantity(unit: .count(), doubleValue: value) // unused (category)
+        case .hrv, .water, .caffeine, .sleepingHeartRate:
+            return HealthDepthHK.quantity(for: kind, value: value) ?? HKQuantity(unit: .count(), doubleValue: value)
+        case .menstrualFlow: return HKQuantity(unit: .count(), doubleValue: value) // unused (category)
         }
     }
 
@@ -79,6 +84,8 @@ final class HealthSync: ObservableObject {
         // Body composition (from the watch's BIA sensor); optional, like the other sensors.
         types.insert(HKQuantityType(.bodyFatPercentage))
         types.insert(HKQuantityType(.leanBodyMass))
+        // Cycle symptoms (HealthDepth.swift); HRV, water, caffeine and flow come from SampleKind above.
+        types.formUnion(HealthDepthHK.shareTypes)
         do {
             try await store.requestAuthorization(toShare: types, read: [])
             // The core activity types gate "authorized"; the Samsung-only sensors (SpO₂, skin
@@ -101,6 +108,7 @@ final class HealthSync: ObservableObject {
         // batch re-sent after a lost ack won't double-count.
         summary.add(batchId: batchId, items)
         summary.save()
+        HealthDepthStore.shared.ingest(batchId: batchId, items)
         lastSync = Date()
 
         let device = HKDevice(name: "Galaxy Watch", manufacturer: "Samsung", model: nil,
@@ -118,7 +126,11 @@ final class HealthSync: ObservableObject {
             let metadata: [String: Any] = [
                 HKMetadataKeySyncIdentifier: "gb-\(item.kind.rawValue)-\(item.start)-\(item.end)",
                 HKMetadataKeySyncVersion: 1,
-            ]
+            ].merging(HealthDepthHK.metadata(for: item.kind)) { current, _ in current }
+            if item.kind == .menstrualFlow {
+                samples.append(HealthDepthHK.flowSample(item, device: device, metadata: metadata))
+                continue
+            }
             if item.kind == .sleep {
                 samples.append(HKCategorySample(
                     type: Self.sleepType, value: Self.sleepValue(item.value).rawValue,
@@ -253,10 +265,17 @@ extension HealthSync {
         let device = HKDevice(name: "Galaxy Watch", manufacturer: "Samsung", model: nil, hardwareVersion: nil,
                               firmwareVersion: nil, softwareVersion: nil, localIdentifier: nil, udiDeviceIdentifier: nil)
         let metadata: [String: Any] = [HKMetadataKeySyncIdentifier: "gb-workout-\(id)", HKMetadataKeySyncVersion: 1]
-        let workout = HKWorkout(activityType: type, start: startDate, end: endDate, duration: endDate.timeIntervalSince(startDate),
-                                totalEnergyBurned: kcal > 0 ? HKQuantity(unit: .kilocalorie(), doubleValue: kcal) : nil,
-                                totalDistance: dist > 0 ? HKQuantity(unit: .meter(), doubleValue: dist) : nil,
-                                device: device, metadata: metadata)
+        // Laps and pauses from the watch's workout screen (Wave C), as workout events.
+        let events = Self.workoutEvents(w, start: startDate, end: endDate)
+        let workout = events.isEmpty
+            ? HKWorkout(activityType: type, start: startDate, end: endDate, duration: endDate.timeIntervalSince(startDate),
+                        totalEnergyBurned: kcal > 0 ? HKQuantity(unit: .kilocalorie(), doubleValue: kcal) : nil,
+                        totalDistance: dist > 0 ? HKQuantity(unit: .meter(), doubleValue: dist) : nil,
+                        device: device, metadata: metadata)
+            : HKWorkout(activityType: type, start: startDate, end: endDate, workoutEvents: events,
+                        totalEnergyBurned: kcal > 0 ? HKQuantity(unit: .kilocalorie(), doubleValue: kcal) : nil,
+                        totalDistance: dist > 0 ? HKQuantity(unit: .meter(), doubleValue: dist) : nil,
+                        device: device, metadata: metadata)
         do {
             try await store.save(workout)
             let points = (w["route"] as? [[NSNumber]] ?? []).compactMap { p -> CLLocation? in

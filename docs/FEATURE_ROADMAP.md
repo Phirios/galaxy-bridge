@@ -35,12 +35,12 @@ Transport we ride (all already proven on this watch): our **companion BLE link**
 - ✅ **SpO₂, skin temperature** (validated live) → Apple Health.
 - ✅ **ECG** waveform in-app (display only — iOS bars 3rd-party ECG writes; **no AFib claims**). Waveform now auto-ranged (fixes the fixed-×1000 overflow that flat-lined the trace).
 - ✅ **Body composition (BIA)** → body-fat % + lean mass to Apple Health (now with real profile).
-- ✅ **Sleep** (estimated) → Apple Health; 🔨 add **overnight SpO₂ + skin-temp + sleeping HR**.
-- 🔨 **Stress / HRV** — sensor exposes IBI list + EDA; compute HRV/stress → Health (mindfulness/HRV).
-- 🔨 **Continuous/auto background logging** — scheduled SpO₂, skin-temp, HR to Health without tapping.
-- 🔨 **Activity rings / goals**, inactivity + hydration + stand reminders (watch tiles).
-- 🔨 **Women's health / cycle** (HealthKit category), **water/caffeine intake** logging.
-- 🔨 **Live workout screen** on the watch driven from the phone; auto-pause; lap splits.
+- ✅ **Sleep** (estimated) → Apple Health; ⚠️ **overnight SpO₂ + skin-temp + sleeping HR + HRV** built (AutoLog.kt, off by default) — needs a live overnight test. Sleep estimate now gets movement from the hardware step counter (it had stopped seeing steps when they moved off Health Services).
+- ⚠️ **Stress / HRV** built (Hrv.kt): IBIs read from HeartRateSet slots [3]=count, [4+2i]=IBI, [5+2i]=status; SDNN → Apple Health HRV, RMSSD-based 0–100 stress (estimate) on iPhone + watch tile. Needs live test: whether this firmware fills the IBI slots (the app counts attempts with/without IBI and says so).
+- ⚠️ **Automatic background readings** built: inexact 15-min alarm, configurable interval on iPhone, battery/charging/power-saver/workout aware, off by default. Needs live test for doze reliability and battery cost.
+- ⚠️ **Goals + rings** (iPhone Health tab + watch Activity goals tile) and **inactivity / stand / hydration reminders** built (off by default, quiet hours) — reminders need a live test.
+- ✅ **Cycle tracking** (flow + symptoms, iPhone; flow also on watch) and **water/caffeine** logging (iPhone + watch Quick log tile) → HealthKit — build-verified, Health writes need a live check.
+- ⚠️ Watch workout screen: **auto-pause** (where supported), pause/resume, **lap splits** (laps + pauses sent with the workout) — needs a live run. 🔨 Driving it from the phone.
 - 🚫 Blood pressure (Samsung BP needs Samsung Health Monitor + per-region cuff calibration + Galaxy phone); medical AFib/irregular-rhythm diagnosis (regulatory).
 
 ## 4. Safety (high value, very native-feeling)
