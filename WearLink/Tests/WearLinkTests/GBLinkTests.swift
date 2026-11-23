@@ -74,6 +74,42 @@ final class GBMessageTests: XCTestCase {
         XCTAssertEqual(try GBMessage.decode(m.encoded(), now: now), m)
     }
 
+    func testHealthDepthSamplesRoundTrip() throws {
+        let m = GBMessage.samples(batchId: batch, items: [
+            HealthSample(kind: .hrv, start: nowMs - 60_000, end: nowMs, value: 42.5),
+            HealthSample(kind: .water, start: nowMs, end: nowMs, value: 250),
+            HealthSample(kind: .caffeine, start: nowMs, end: nowMs, value: 95),
+            HealthSample(kind: .menstrualFlow, start: nowMs, end: nowMs, value: MenstrualFlow.medium.rawValue),
+            HealthSample(kind: .sleepingHeartRate, start: nowMs, end: nowMs, value: 52),
+        ])
+        XCTAssertEqual(try GBMessage.decode(m.encoded(), now: now), m)
+        // Wire names must match the Kotlin SampleKind enum.
+        XCTAssertEqual([SampleKind.hrv, .water, .caffeine, .menstrualFlow, .sleepingHeartRate].map(\.rawValue),
+                       ["hrv", "water", "caffeine", "flow", "shr"])
+    }
+
+    func testRejectsImplausibleHealthDepthSamples() throws {
+        let m = GBMessage.samples(batchId: batch, items: [
+            HealthSample(kind: .hrv, start: nowMs, end: nowMs, value: 0),         // no such HRV
+            HealthSample(kind: .water, start: nowMs, end: nowMs, value: 20_000),  // 20 litres at once
+            HealthSample(kind: .menstrualFlow, start: nowMs, end: nowMs, value: 9),
+            HealthSample(kind: .caffeine, start: nowMs, end: nowMs, value: 63),
+        ])
+        XCTAssertEqual(try GBMessage.decode(m.encoded(), now: now), .samples(batchId: batch, items: [
+            HealthSample(kind: .caffeine, start: nowMs, end: nowMs, value: 63),
+        ]))
+    }
+
+    func testHealthDepthFeatureMessages() throws {
+        XCTAssertNotNil(GBFeature.message("hdConfig", ["goalSteps": 8000]))
+        XCTAssertNotNil(GBFeature.message("hdGetState"))
+        XCTAssertNotNil(GBFeature.message("hdMeasureHrv"))
+        let result = Data(#"{"t":"hrvResult","ok":true,"sdnn":40,"rmssd":35,"stress":45,"at":1}"#.utf8)
+        guard case let .raw(type, _) = try GBMessage.decode(result) else { return XCTFail() }
+        XCTAssertEqual(type, "hrvResult")
+        guard case .raw("hdState", _) = try GBMessage.decode(Data(#"{"t":"hdState"}"#.utf8)) else { return XCTFail() }
+    }
+
     func testRejectsImplausibleSpo2() {
         let m = GBMessage.samples(batchId: batch, items: [
             HealthSample(kind: .spo2, start: nowMs, end: nowMs, value: 20),   // below 50%: impossible

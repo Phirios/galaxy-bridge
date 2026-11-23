@@ -42,6 +42,8 @@ class StepCounter(private val ctx: Context) : SensorEventListener {
         val delta = cur - last
         prefs.edit().putLong(KEY_CUM, cur).putLong(KEY_TIME, now).apply()
         if (delta <= 0) return
+        // Goal rings, reminders and the sleep estimate's movement signal (Goals.kt), whatever the sync setting.
+        runCatching { Goals.onSteps(ctx, HealthSample(SampleKind.STEPS, lastTime, now, delta.toDouble())) }
         if (!WatchSettings.syncs(ctx, SampleKind.STEPS)) return
         SampleQueue(ctx.filesDir).add(listOf(HealthSample(SampleKind.STEPS, lastTime, now, delta.toDouble())))
         LinkService.samplesQueued()

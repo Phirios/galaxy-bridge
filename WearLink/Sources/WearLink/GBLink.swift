@@ -98,6 +98,11 @@ public enum SampleKind: String, Codable, CaseIterable {
     case skinTemp = "skintemp"   // skin/wrist temperature °C, instantaneous (start == end)
     case restingHeartRate = "rhr" // resting bpm, instantaneous
     case sleep = "sleep"         // value = SleepStage.rawValue over [start, end]
+    case hrv = "hrv"             // heart-rate variability (SDNN) in ms over [start, end]
+    case water = "water"         // water drunk in millilitres, instantaneous (start == end)
+    case caffeine = "caffeine"   // caffeine in milligrams, instantaneous (start == end)
+    case menstrualFlow = "flow"  // MenstrualFlow.rawValue, logged for a day (start == end)
+    case sleepingHeartRate = "shr" // bpm measured while the wearer is estimated asleep, instantaneous
 
     /// Physically plausible bounds per sample, used to reject corrupt or hostile input.
     var validRange: ClosedRange<Double> {
@@ -111,6 +116,11 @@ public enum SampleKind: String, Codable, CaseIterable {
         case .skinTemp: return 20...45
         case .restingHeartRate: return 25...150
         case .sleep: return 0...3
+        case .hrv: return 1...300
+        case .water: return 1...5_000
+        case .caffeine: return 1...1_000
+        case .menstrualFlow: return 1...5
+        case .sleepingHeartRate: return 25...200
         }
     }
 }
@@ -119,6 +129,12 @@ public enum SampleKind: String, Codable, CaseIterable {
 /// heuristic (`SleepTracker.kt`) only produces `asleep`, but the wire format allows the rest.
 public enum SleepStage: Double {
     case inBed = 0, asleep = 1, awake = 2, deep = 3
+}
+
+/// Menstrual flow carried in a `flow` sample's value. Same raw values as HealthKit's
+/// vaginal-bleeding / menstrual-flow category values.
+public enum MenstrualFlow: Double, CaseIterable {
+    case unspecified = 1, light = 2, medium = 3, heavy = 4, none = 5
 }
 
 public struct HealthSample: Codable, Equatable {
@@ -457,6 +473,8 @@ public enum GBFeature {
         "notifApps", "apps", "sounds", "recordings", "recPart", "workout", "reminderDone",
         "camCmd", "camView", "result", "face", "faces", "facePreview", "design", "sensors", "ecg", "bia",
         "install",
+        // Wave C (health depth): HRV/stress result and goals/auto-log state.
+        "hrvResult", "hdState",
     ]
     /// Phone → watch (must match Features.FROM_PHONE in the watch app).
     public static let toWatch: Set<String> = [
@@ -465,6 +483,8 @@ public enum GBFeature {
         "camFrame", "camState", "getNotifApps", "getFace", "getFaces", "openFacePicker", "applyFace", "setDesign", "getDesign",
         "getSensors", "measureSensors", "openSensorSettings", "measureEcg", "measureBia",
         "install", "setBiaProfile", "call",
+        // Wave C (health depth): config (goals, reminders, auto-log), state query, HRV measure.
+        "hdConfig", "hdGetState", "hdMeasureHrv",
     ]
 
     public static func message(_ type: String, _ body: [String: Any] = [:]) -> GBMessage? {

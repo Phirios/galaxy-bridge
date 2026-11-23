@@ -107,6 +107,10 @@ object WatchSettings {
         SampleKind.SKIN_TEMP -> SYNC_SKIN_TEMP
         SampleKind.RESTING_HEART_RATE -> SYNC_HEART
         SampleKind.SLEEP -> SYNC_SLEEP
+        // HRV and sleeping HR are heart data. Water, caffeine and flow are logged by the user and
+        // enqueued directly (Intake.kt) without this check; they map here only to keep `when` total.
+        SampleKind.HRV, SampleKind.SLEEPING_HEART_RATE -> SYNC_HEART
+        SampleKind.WATER, SampleKind.CAFFEINE, SampleKind.MENSTRUAL_FLOW -> SYNC_HEART
     })
 
     fun canWriteSystem(c: Context) = Settings.System.canWrite(c)

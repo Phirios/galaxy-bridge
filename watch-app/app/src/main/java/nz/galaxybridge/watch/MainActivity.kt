@@ -216,6 +216,7 @@ class MainActivity : ComponentActivity() {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Launcher(R.drawable.ic_find, "Find", Wait, Color(0xFFFF7A2E)) { page = PAGE_FIND }
                 Launcher(R.drawable.ic_tune, "Settings", Color(0xFF8E96B8), Color(0xFF3A3F5C)) { page = PAGE_SETTINGS }
+                Launcher(R.drawable.ic_health, "Health", Color(0xFFFF5C7A), Color(0xFFB0306A)) { HealthDepthActivity.launch(this@MainActivity) }
             }
         }
         item { WeatherCard() }
@@ -445,13 +446,18 @@ class MainActivity : ComponentActivity() {
         }
         var now by remember { mutableStateOf(android.os.SystemClock.elapsedRealtime()) }
         LaunchedEffect(Unit) { while (true) { delay(1000); now = android.os.SystemClock.elapsedRealtime() } }
-        val secs = (now - Workouts.startedAt) / 1000
+        // Active time (excludes pauses); `now` ticks to recompose each second.
+        val secs = if (now > 0) Workouts.activeMs() / 1000 else 0
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(current.kind.label + if (current.gps) " · GPS" else "", style = MaterialTheme.typography.caption2, color = Good)
             Text("%d:%02d:%02d".format(secs / 3600, secs / 60 % 60, secs % 60), fontSize = 28.sp,
                 fontWeight = FontWeight.Bold, color = Color.White)
             Text("♥ ${current.hr.toInt().takeIf { it > 0 } ?: "--"}   ${"%.2f".format(current.distM / 1000)} km   ${current.kcal.toInt()} kcal",
                 style = MaterialTheme.typography.caption2, color = Color.White)
+            WorkoutExtras.Controls(current,
+                onPause = { lifecycleScope.launch { Workouts.pause(this@MainActivity) } },
+                onResume = { lifecycleScope.launch { Workouts.resume(this@MainActivity) } },
+                onLap = { lifecycleScope.launch { Workouts.lap(this@MainActivity) } })
             Spacer(Modifier.height(8.dp))
             Button(onClick = { lifecycleScope.launch { Workouts.stop(this@MainActivity) } },
                 colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFE5484D))) { Text("End") }

@@ -220,6 +220,8 @@ class LinkService : Service() {
         // syncing until the watch screen was next opened. Health Services dedups by service class,
         // so re-registering is harmless/idempotent.
         scope.launch(Dispatchers.IO) { runCatching { Health.register(this@LinkService) } }
+        // Background readings / reminders tick (no alarm unless one of them is switched on).
+        AutoLog.schedule(this)
         status.value = Status.WAITING
     }
 
@@ -445,6 +447,7 @@ class LinkService : Service() {
                 scope.launch(Dispatchers.IO) { Health.flush(this@LinkService) }
                 sendStatus()
                 Workouts.flush(this@LinkService)
+                HealthDepth.onConnected(this@LinkService)
                 if (device.bondState == BluetoothDevice.BOND_BONDED) {
                     hid.connectToPhone()
                     apple.connect(device)

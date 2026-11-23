@@ -26,6 +26,10 @@ object SleepTracker {
     private const val ASLEEP_START = "asleepStart"
     private const val RESTING_HR = "restingHr"
 
+    /** True while a sleep session is open (the estimate thinks the wearer is asleep). */
+    fun isAsleep(c: Context): Boolean =
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(ASLEEP_START, 0L) > 0L
+
     fun onData(c: Context, samples: List<HealthSample>): List<HealthSample> {
         val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = samples.maxOfOrNull { it.endMs } ?: System.currentTimeMillis()

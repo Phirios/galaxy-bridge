@@ -245,6 +245,54 @@
             <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_stat_iphone" />
         </service>
 
+        <!-- Wave C (health depth): health hub, reminder actions + background-reading tick, tiles. -->
+        <activity
+            android:name=".HealthDepthActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:theme="@android:style/Theme.DeviceDefault" />
+
+        <receiver
+            android:name=".HealthDepthReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".GoalsTile"
+            android:exported="true"
+            android:icon="@drawable/ic_health"
+            android:label="Activity goals"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_health" />
+        </service>
+
+        <service
+            android:name=".QuickLogTile"
+            android:exported="true"
+            android:icon="@drawable/ic_health"
+            android:label="Water &amp; caffeine"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_health" />
+        </service>
+
+        <service
+            android:name=".StressTile"
+            android:exported="true"
+            android:icon="@drawable/ic_health"
+            android:label="Stress (estimate)"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_health" />
+        </service>
+
         <receiver
             android:name=".BootReceiver"
             android:exported="false">

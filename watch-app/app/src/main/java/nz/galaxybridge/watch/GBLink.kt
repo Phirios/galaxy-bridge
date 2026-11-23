@@ -88,6 +88,11 @@ enum class SampleKind(val wire: String, val range: ClosedFloatingPointRange<Doub
     SKIN_TEMP("skintemp", 20.0..45.0),
     RESTING_HEART_RATE("rhr", 25.0..150.0),
     SLEEP("sleep", 0.0..3.0),
+    HRV("hrv", 1.0..300.0),
+    WATER("water", 1.0..5_000.0),
+    CAFFEINE("caffeine", 1.0..1_000.0),
+    MENSTRUAL_FLOW("flow", 1.0..5.0),
+    SLEEPING_HEART_RATE("shr", 25.0..200.0),
 }
 
 /** Sleep stage carried in a SLEEP sample's value. Mirrors SleepStage in GBLink.swift. */
