@@ -86,7 +86,7 @@ object HealthDepth {
                     s.send(WatchMessages.feature("hrvResult", Hrv.resultJson(null, "Samsung sensors aren't available on this watch")))
                     return
                 }
-                if (!HealthDepthActivity.launch(s, measure = true)) {
+                if (!VitalsActivity.open(s, VitalsActivity.MODE_STRESS, start = true)) {
                     Hrv.measure(s) { r, reason -> if (r == null) LinkService.sendFeature("hrvResult", Hrv.resultJson(null, reason)) }
                 }
             }

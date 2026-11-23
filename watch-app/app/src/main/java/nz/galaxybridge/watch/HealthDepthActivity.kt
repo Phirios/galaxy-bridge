@@ -185,25 +185,20 @@ class HealthDepthActivity : ComponentActivity() {
     @Composable
     private fun StressCard() {
         val r = Hrv.latest(this)
-        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Stress (estimate)", style = MaterialTheme.typography.caption2, color = dim)
-            if (measuring) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CircularProgressIndicator(Modifier.size(22.dp), indicatorColor = Color(0xFF4DA3FF))
-                    Text("Measuring… keep still", color = Color.White, fontSize = 13.sp)
-                }
-            } else if (r != null) {
-                Text("${r.stress} · ${Hrv.label(r.stress)}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text("HRV ${r.sdnn.toInt()} ms (SDNN) · RMSSD ${r.rmssd.toInt()} ms",
-                    style = MaterialTheme.typography.caption3, color = dim, textAlign = TextAlign.Center)
-            } else {
-                Text("No reading yet", fontSize = 15.sp, color = Color.White)
-            }
-            message?.let { Text(it, style = MaterialTheme.typography.caption3, color = Color(0xFFFFC542), textAlign = TextAlign.Center) }
-            if (!measuring) {
-                Chip(onClick = { measure() }, label = { Text("Measure (1 min)") },
-                    colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.padding(top = 4.dp))
-            }
+        val spo2 = getSharedPreferences("vitals", MODE_PRIVATE).getInt("spo2", 0).takeIf { it > 0 }
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Chip(onClick = { VitalsActivity.open(this@HealthDepthActivity, VitalsActivity.MODE_STRESS) },
+                label = { Text("Stress") },
+                secondaryLabel = { Text(r?.let { Hrv.label(it.stress) + " · HRV ${it.sdnn.toInt()} ms" } ?: "Measure") },
+                colors = ChipDefaults.gradientBackgroundChipColors(Color(0xFFF2B705).copy(alpha = 0.55f), Color(0xFF3A2A05)),
+                modifier = Modifier.fillMaxWidth())
+            Chip(onClick = { VitalsActivity.open(this@HealthDepthActivity, VitalsActivity.MODE_SPO2) },
+                label = { Text("Blood oxygen") },
+                secondaryLabel = { Text(spo2?.let { "$it%" } ?: "Measure") },
+                colors = ChipDefaults.gradientBackgroundChipColors(Color(0xFF7A2048), Color(0xFF2A0A18)),
+                modifier = Modifier.fillMaxWidth())
         }
     }
+
 }

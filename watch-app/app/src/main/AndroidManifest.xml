@@ -426,6 +426,13 @@
             <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_stat_iphone" />
         </service>
 
+        <!-- Stress and blood-oxygen measuring screens (watch health style). -->
+        <activity
+            android:name=".VitalsActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@android:style/Theme.DeviceDefault" />
+
         <receiver
             android:name=".BootReceiver"
             android:exported="false">
