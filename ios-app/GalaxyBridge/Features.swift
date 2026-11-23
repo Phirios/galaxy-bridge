@@ -109,6 +109,7 @@ final class FeatureHub: ObservableObject {
         Task { await sendReminders() }
         post("getNotifApps")
         post("getFace")
+        CallsSafetyStore.shared.onConnected(self)
     }
 
     // MARK: Incoming
@@ -227,6 +228,8 @@ final class FeatureHub: ObservableObject {
             if what == "ecg" { measuringEcg = false }
             if what == "bia" { measuringBia = false }
             toast = detail.isEmpty ? (ok ? "Done on watch" : "The watch couldn't do that") : detail
+        case "callLog", "safetyState", "sosAlert", "hrAlert", "findLoud", "quickReply":
+            CallsSafetyStore.shared.handle(type, b, hub: self)
         default: break
         }
     }

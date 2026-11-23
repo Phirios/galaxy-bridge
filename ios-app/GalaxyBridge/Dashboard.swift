@@ -102,6 +102,8 @@ private struct HomeView: View {
                     FeatureTile(title: "Contacts", sub: "Copy to the watch", symbol: "person.crop.circle.fill", color: .gray, dest: AnyView(ContactsView())),
                     FeatureTile(title: "Reminders", sub: "Tile on the watch", symbol: "checklist", color: .orange, dest: AnyView(RemindersView())),
                     FeatureTile(title: "Alarms & timers", sub: "Set on the watch", symbol: "alarm.fill", color: .indigo, dest: AnyView(AlarmsView())),
+                    FeatureTile(title: "Favourites", sub: "Recents & quick replies", symbol: "star.fill", color: .yellow, dest: AnyView(CallsFavouritesView())),
+                    FeatureTile(title: "Safety", sub: "SOS, falls, heart rate", symbol: "sos", color: .red, dest: AnyView(SafetyView())),
                 ])
 
                 SectionTitle(text: "Photos & recordings")

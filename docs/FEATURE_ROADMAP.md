@@ -13,19 +13,19 @@ Transport we ride (all already proven on this watch): our **companion BLE link**
 
 ## 1. Phone & messaging
 - ✅ Incoming calls on the watch (HFP) — answer / reject / hang-up, call audio on the watch.
-- 🔨 **Outgoing calls from the watch** — dial a contact/number → HFP places it on the iPhone's cellular. (UI built; needs the classic-BT bond.)
+- ⚠️ **Outgoing calls from the watch** — watch **Phone** app (favourites, keypad, contacts) → HFP dial on the iPhone. Built; **needs live test** with the classic-BT HFP bond.
 - ✅ Incoming texts/iMessages shown on the watch (ANCS).
 - ⚠️ **Reply to a text** — by **Siri over HFP** ("reply …"); iOS composes & sends. No silent typed send.
 - ✅ **Notification quick-actions** — ANCS positive/negative actions performed from the watch notification (accept/decline, clear) → `PerformNotificationAction`.
 - ✅ **Dismiss-sync** — clearing on the watch performs the ANCS negative action to clear on the iPhone (opt-in).
-- 🔨 **Favourite contacts / recent calls tile**, call history, one-tap call-back.
-- 🔨 **Canned quick-replies** that fire Siri phrases for the common cases.
+- ⚠️ **Favourites + recents** — favourites picked on the iPhone (Watch → Favourites), **Calls & SOS tile**, call history from watch dials + ANCS incoming calls + HFP call broadcasts (hidden API: needs live test), one-tap call-back.
+- ⚠️ **Canned quick-replies** — tap → Siri over HFP (voice-recognition activation, needs live test) + an iPhone notification that opens Messages prefilled (user taps Send).
 - 🚫 Reading full message history / smart-reply suggestions (ANCS is notify-only); silent typed SMS.
 
 ## 2. Notifications & phone status
 - ✅ Full notification mirroring (ANCS), per-app filters.
 - ✅ **Phone battery + charging on the watch** (tile/complication) and **watch battery on the phone** (live card, pushed on change); **"find" my phone** done. 🚫 phone signal + ringer state (no iOS API).
-- 🔨 **Ring/silence/find my phone** (done) + **find my watch** (done) — add loud escalating find.
+- ⚠️ **Ring/silence/find my phone** (done) + **find my watch** (done) + **loud escalating find** both ways (watch alarm volume/vibration ramp; iPhone tone ramp while the app runs). Needs live test.
 - 🔨 **Live Activity / iOS widget** on the phone showing live watch HR/steps/battery.
 - ⚠️ Toggle iPhone DND/Focus from watch — largely walled; can mirror watch DND the other way.
 - 🚫 Toggling iPhone Wi-Fi/Bluetooth/torch, unlocking the iPhone, screen mirroring, Handoff/Continuity.
@@ -44,9 +44,9 @@ Transport we ride (all already proven on this watch): our **companion BLE link**
 - 🚫 Blood pressure (Samsung BP needs Samsung Health Monitor + per-region cuff calibration + Galaxy phone); medical AFib/irregular-rhythm diagnosis (regulatory).
 
 ## 4. Safety (high value, very native-feeling)
-- 🔨 **Fall detection → auto-call** an emergency contact over HFP + on-watch countdown to cancel.
-- 🔨 **Emergency SOS** (hold the watch button) → HFP call + share location to the phone.
-- 🔨 **Hard-fall / no-movement check-in**; **low-HR / high-HR alerts** from the live stream.
+- ⚠️ **Fall detection → auto-call** the user's chosen contact over HFP after a cancellable on-watch countdown (≥15 s). Accelerometer impact+stillness heuristic, default OFF. Thresholds untuned: needs live test.
+- ⚠️ **Emergency SOS** (hold-for-SOS in Phone, SOS tile chip, or the SOS launcher mapped to a key double-press) → countdown → HFP call + watch GPS location to the iPhone (notification opens Messages prefilled). Never dials public emergency numbers. Needs live test.
+- ⚠️ **No-movement check-in** (off-wrist/charging skipped) and **low/high-HR alerts** (HR sensor sampled every 10 min, two strikes; thresholds set on the iPhone). Not medical. Needs live test.
 
 ## 5. Media & camera
 - ✅ Media control (AMS): play/pause/skip/volume, now-playing on the watch.
