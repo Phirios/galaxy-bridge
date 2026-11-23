@@ -14,6 +14,16 @@ import android.util.Log
  * The connect call is a system API reached by reflection and may be refused on some watches.
  */
 object CallAudio {
+    /**
+     * True while the hands-free link to the iPhone is up. The watch's own Samsung Phone app then
+     * rings for incoming calls and logs them, so our own call alert and history stay out of the way.
+     */
+    @SuppressLint("MissingPermission")
+    fun hfpConnected(context: Context): Boolean = runCatching {
+        context.getSystemService(BluetoothManager::class.java).adapter
+            .getProfileConnectionState(HEADSET_CLIENT) == BluetoothProfile.STATE_CONNECTED
+    }.getOrDefault(false)
+
     private const val TAG = "CallAudio"
     private const val HEADSET_CLIENT = 16
 

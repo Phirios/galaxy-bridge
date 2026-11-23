@@ -55,6 +55,8 @@ class PhoneNotifier(private val context: Context) {
 
     fun post(e: Ancs.Event, d: Ancs.Details, app: String) {
         if (e.category == Ancs.CATEGORY_INCOMING_CALL) {
+            // With hands-free connected, Samsung's own call screen rings for this call; don't double up.
+            if (CallAudio.hfpConnected(context)) return
             if (WatchSettings.enabled(context, WatchSettings.CALLS)) postCall(e, d)
             return
         }

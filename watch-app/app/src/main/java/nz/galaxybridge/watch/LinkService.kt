@@ -501,7 +501,7 @@ class LinkService : Service() {
                 }
                 is PhoneMessage.PhoneBattery -> { phoneBattery.value = m; PhoneInfo.save(this@LinkService, m); Tiles.refresh(this@LinkService) }
                 is PhoneMessage.Weather -> { weather.value = m; PhoneInfo.save(this@LinkService, m); Tiles.refresh(this@LinkService) }
-                is PhoneMessage.Events -> { events.value = m.items; PhoneInfo.save(this@LinkService, m); Tiles.refresh(this@LinkService) }
+                is PhoneMessage.Events -> { events.value = m.items; PhoneInfo.save(this@LinkService, m); Tiles.refresh(this@LinkService); scope.launch(Dispatchers.IO) { CalendarMirror.update(this@LinkService, m.items) } }
                 is PhoneMessage.Raw -> Features.handle(this@LinkService, m.type, m.json)
                 null -> Log.w(TAG, "rejected message from phone")
             }
