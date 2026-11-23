@@ -94,6 +94,8 @@ private struct HomeView: View {
                     FeatureTile(title: "Watch faces", sub: "On your watch now", symbol: "paintpalette.fill", color: .orange, dest: AnyView(WatchFacesView())),
                     FeatureTile(title: "Watch apps", sub: "Open or uninstall", symbol: "square.grid.2x2.fill", color: .blue, dest: AnyView(AppsView())),
                     FeatureTile(title: "Tiles", sub: "Swipe from the face", symbol: "rectangle.stack.fill", color: .teal, dest: AnyView(TilesInfoView())),
+                    FeatureTile(title: "Face schedule", sub: "Switch by time of day", symbol: "clock.arrow.2.circlepath", color: .pink, dest: AnyView(FaceScheduleView())),
+                    FeatureTile(title: "Tile manager", sub: "What's on the watch", symbol: "square.stack.3d.up.fill", color: .mint, dest: AnyView(TileManagerView())),
                 ])
 
                 SectionTitle(text: "Stay in touch")
@@ -108,6 +110,23 @@ private struct HomeView: View {
                 FeatureTileGrid(items: [
                     FeatureTile(title: "Photos", sub: "Send to Gallery", symbol: "photo.fill", color: .purple, dest: AnyView(PhotosToWatchView())),
                     FeatureTile(title: "Voice recordings", sub: "Copy from watch", symbol: "waveform", color: .cyan, dest: AnyView(RecordingsView())),
+                ])
+
+                SectionTitle(text: "Media")
+                FeatureTileGrid(items: [
+                    FeatureTile(title: "Music on watch", sub: "Offline to earbuds", symbol: "music.note.list", color: .purple, dest: AnyView(WatchMusicView())),
+                    FeatureTile(title: "iPhone media", sub: "Seek, output", symbol: "airplayaudio", color: .red, dest: AnyView(IPhoneMediaView())),
+                    FeatureTile(title: "Clicker", sub: "Slides from the bezel", symbol: "rectangle.on.rectangle.angled", color: .orange, dest: AnyView(ClickerInfoView())),
+                ])
+
+                SectionTitle(text: "Productivity")
+                FeatureTileGrid(items: [
+                    FeatureTile(title: "Translate", sub: "Speak on the watch", symbol: "character.bubble.fill", color: .blue, dest: AnyView(TranslateView())),
+                    FeatureTile(title: "World clock", sub: "Cities on a tile", symbol: "globe", color: .teal, dest: AnyView(WorldClockView())),
+                    FeatureTile(title: "Checklist", sub: "Two-way Reminders", symbol: "checklist.checked", color: .green, dest: AnyView(ChecklistView())),
+                    FeatureTile(title: "Passes", sub: "QR tickets on the watch", symbol: "qrcode", color: .indigo, dest: AnyView(PassesView())),
+                    FeatureTile(title: "Home shortcuts", sub: "Scenes from a tile", symbol: "house.fill", color: .yellow, dest: AnyView(HomeShortcutsView())),
+                    FeatureTile(title: "Widget", sub: "Live Activity, Lock Screen", symbol: "rectangle.3.group.fill", color: .cyan, dest: AnyView(WidgetsView())),
                 ])
 
                 if let error = link.lastError ?? health.lastError {

@@ -26,7 +26,7 @@ Transport we ride (all already proven on this watch): our **companion BLE link**
 - ✅ Full notification mirroring (ANCS), per-app filters.
 - ✅ **Phone battery + charging on the watch** (tile/complication) and **watch battery on the phone** (live card, pushed on change); **"find" my phone** done. 🚫 phone signal + ringer state (no iOS API).
 - 🔨 **Ring/silence/find my phone** (done) + **find my watch** (done) — add loud escalating find.
-- 🔨 **Live Activity / iOS widget** on the phone showing live watch HR/steps/battery.
+- ✅ **Live Activity / iOS widget** (Home + Lock Screen + Dynamic Island) showing watch HR/steps/battery — WidgetKit extension `GalaxyBridgeWidgetExtension`, data via App Group `group.nz.galaxybridge.app` (needs the App Group registered at signing; needs live test).
 - ⚠️ Toggle iPhone DND/Focus from watch — largely walled; can mirror watch DND the other way.
 - 🚫 Toggling iPhone Wi-Fi/Bluetooth/torch, unlocking the iPhone, screen mirroring, Handoff/Continuity.
 
@@ -51,21 +51,21 @@ Transport we ride (all already proven on this watch): our **companion BLE link**
 ## 5. Media & camera
 - ✅ Media control (AMS): play/pause/skip/volume, now-playing on the watch.
 - ✅ Camera remote: shutter, flip, timer, live preview.
-- 🔨 **Scrub/seek, like/favourite, output picker**; **remote slideshow/presentation clicker**.
-- 🔨 **Offline music / podcast files pushed to the watch** (we already push files) + on-watch player.
+- ⚠️ **Scrub/seek** — AMS has no seek; the watch asks the iPhone app, which can only seek Apple Music (`MPMusicPlayerController.systemMusicPlayer`). ✅ **Like/dislike/bookmark, ±15 s, repeat, shuffle** (AMS commands 7–13; honoured only by players that support them). ⚠️ **Output picker** — iPhone-side `AVRoutePickerView` only; 🚫 switching the iPhone's route from the watch (no iOS API). ✅ **Presentation clicker** — HID keyboard (arrows/B/Esc) + bezel, to the iPhone or a paired computer (needs live test).
+- ✅ **Offline music / podcasts**: Files picker → windowed push over GBLink (≤80 MB, acked every 8 parts) → on-watch MediaSession player, Bluetooth earbuds (needs live test; DRM'd Apple Music files can't be copied).
 
 ## 6. Customisation & apps
 - ✅ 1,600+ in-app watch faces; **apply any installed face from the phone**; complications; tiles.
 - ✅ Watch apps: list / open / uninstall; **push-install an APK from the phone**.
 - ✅ Google Play browse (in-app) with "install on watch".
-- 🔨 **Face scheduling** (auto-switch by time/activity), **per-face complication editing from the phone**.
-- 🔨 **Tile manager from the phone** (reorder/add/remove), **app drawer reorder**.
+- ✅ **Face scheduling** by time of day + optional workout face, classic faces only (WFF refused), inexact alarm + screen-on catch-up; SysUI opens the face editor briefly after each switch (needs live test). 🔨 per-face complication editing.
+- ⚠️ **Tile manager**: phone shows which of our tiles are added (`TileService.getActiveTilesAsync`) and configures their content. 🚫 add/remove/reorder tiles and app-drawer order (Samsung's TileClient/AppTrayClient relay only to Galaxy Wearable; no public API).
 
 ## 7. Productivity & daily
 - ✅ Calendar, reminders, alarms, timers, stopwatch, weather, contacts, voice recordings, photos→Gallery.
-- 🔨 **Two-way reminders/checklists**, **world clock**, **translate** (voice), **calculator/converter tiles**.
-- 🔨 **Boarding passes / tickets as QR on the watch** (pushed images — NOT Wallet/Pay).
-- 🔨 **Smart-home shortcuts** tile (HomeKit/SmartThings scenes triggered via the phone).
+- ✅ **Two-way checklist** (one Reminders list: tick/untick + add from the watch), **world clock tile**, **calculator + unit converter**, ✅/⚠️ **translate** (speak/type on watch → Apple Translation on the iPhone; headless needs iOS 26 + downloaded languages).
+- ✅ **Passes**: QR/Aztec/PDF417/Code 128 rendered on the iPhone (or re-drawn from a screenshot via Vision) → Passes tile + full-brightness viewer. Not Wallet.
+- ⚠️ **Home shortcuts tile** runs named Apple Shortcuts on the iPhone. iOS only opens Shortcuts / allows HomeKit with the app in the foreground, so a locked phone gets a tap-to-run notification instead. No HomeKit entitlement used.
 
 ## 8. Voice & assistant
 - ⚠️ **Siri over HFP** (voice commands, dictated replies, "call …", "set a timer", "navigate…") — the native voice path. 🚫 Deep on-watch Siri UI / Bixby.
