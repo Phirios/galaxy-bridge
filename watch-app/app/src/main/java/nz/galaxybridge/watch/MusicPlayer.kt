@@ -123,8 +123,34 @@ object MusicLibrary {
         val track = Track(id, file, title.ifEmpty { "Track" }, WaveD.text(j.optString("artist"), 60), curBytes, ms)
         save(s, load(s).filterNot { it.id == id } + track)
         reset()
+        publishToMusicLibrary(s, File(dir(s), file), track, ext)
         Features.result(s, "musicPush", true, "${track.title} is on your watch")
         sendLibrary(s)
+    }
+
+    /**
+     * Also files the track in the watch's shared Music library (Music/iPhone), so the watch's own
+     * Samsung Music app lists and plays it like any other song. Best effort: our player keeps its copy.
+     */
+    private fun publishToMusicLibrary(c: Context, src: File, t: Track, ext: String) {
+        runCatching {
+            val mime = when (ext) { "mp3" -> "audio/mpeg"; "wav" -> "audio/wav"; "aac" -> "audio/aac"; "flac" -> "audio/flac"; "ogg" -> "audio/ogg"; else -> "audio/mp4" }
+            val safe = t.title.filter { it.isLetterOrDigit() || it in "-_ ()" }.take(60).ifEmpty { "Track" }
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Audio.Media.DISPLAY_NAME, "$safe.$ext")
+                put(android.provider.MediaStore.Audio.Media.MIME_TYPE, mime)
+                put(android.provider.MediaStore.Audio.Media.TITLE, t.title)
+                if (t.artist.isNotEmpty()) put(android.provider.MediaStore.Audio.Media.ARTIST, t.artist)
+                put(android.provider.MediaStore.Audio.Media.IS_MUSIC, 1)
+                put(android.provider.MediaStore.Audio.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_MUSIC + "/iPhone")
+                put(android.provider.MediaStore.Audio.Media.IS_PENDING, 1)
+            }
+            val cr = c.contentResolver
+            val uri = cr.insert(android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)!!
+            cr.openOutputStream(uri)!!.use { out -> src.inputStream().use { it.copyTo(out) } }
+            values.clear(); values.put(android.provider.MediaStore.Audio.Media.IS_PENDING, 0)
+            cr.update(uri, values, null, null)
+        }.onFailure { android.util.Log.w("MusicPlayer", "music library copy failed", it) }
     }
 
     private fun fail(s: LinkService, id: String, why: String) {
