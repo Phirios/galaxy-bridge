@@ -7,6 +7,7 @@ struct WatchSettingsView: View {
     @EnvironmentObject var phone: PhoneServices
     @EnvironmentObject var health: HealthSync
     @EnvironmentObject var hub: FeatureHub
+    @State private var confirmForget = false
     @State private var brightness: Double = 128
     @State private var editingBrightness = false
 
@@ -205,6 +206,14 @@ struct WatchSettingsView: View {
                         row("Storage", "\(gb(s.freeMB)) free of \(gb(s.totalMB))")
                     }
                 }
+            }
+            Section {
+                Button("Forget this watch", role: .destructive) { confirmForget = true }
+                    .confirmationDialog("Forget this watch?", isPresented: $confirmForget, titleVisibility: .visible) {
+                        Button("Forget", role: .destructive) { link.forgetWatch() }
+                    } message: {
+                        Text("Also tap Forget iPhone on the watch, then remove it in Settings → Bluetooth.")
+                    }
             }
         }
         .auroraScreen()

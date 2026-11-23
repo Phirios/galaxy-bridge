@@ -252,6 +252,8 @@
         <!-- Calls & safety (Wave B) -->
         <activity
             android:name=".CallsActivity"
+            android:icon="@mipmap/ic_launcher_phone"
+            android:roundIcon="@mipmap/ic_launcher_phone"
             android:exported="true"
             android:label="Phone"
             android:taskAffinity="nz.galaxybridge.watch.calls">
@@ -264,6 +266,8 @@
         <!-- Launcher entry that starts the cancellable SOS countdown; can be mapped to a key double-press. -->
         <activity
             android:name=".SosActivity"
+            android:icon="@mipmap/ic_launcher_sos"
+            android:roundIcon="@mipmap/ic_launcher_sos"
             android:exported="true"
             android:label="SOS"
             android:excludeFromRecents="true"

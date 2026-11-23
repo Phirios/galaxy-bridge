@@ -205,23 +205,65 @@ class MainActivity : ComponentActivity() {
         item { HeroRing() }
         item { PairingOrNothing() }
         item { ClockCard() }
+        item { TodayGlance() }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Launcher(R.drawable.ic_run, "Workout", Good, Color(0xFF0E8F5A)) { page = PAGE_WORKOUT }
+                Launcher(R.drawable.ic_health, "Health", Color(0xFFFF5C7A), Color(0xFFB0306A)) { HealthDepthActivity.launch(this@MainActivity) }
                 Launcher(R.drawable.ic_music, "Music", Accent, Color(0xFFB04CFF)) { page = PAGE_MUSIC }
-                Launcher(R.drawable.ic_camera, "Camera", Accent2, Color(0xFF1E5BB8)) { page = PAGE_CAMERA }
             }
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Launcher(R.drawable.ic_camera, "Camera", Accent2, Color(0xFF1E5BB8)) { page = PAGE_CAMERA }
+                Launcher(R.drawable.ic_phone, "Phone", Color(0xFF1DB954), Color(0xFF0E8A3E)) {
+                    startActivity(Intent(this@MainActivity, CallsActivity::class.java))
+                }
                 Launcher(R.drawable.ic_find, "Find", Wait, Color(0xFFFF7A2E)) { page = PAGE_FIND }
-                Launcher(R.drawable.ic_tune, "Settings", Color(0xFF8E96B8), Color(0xFF3A3F5C)) { page = PAGE_SETTINGS }
-                Launcher(R.drawable.ic_health, "Health", Color(0xFFFF5C7A), Color(0xFFB0306A)) { HealthDepthActivity.launch(this@MainActivity) }
             }
         }
-        item { WeatherCard() }
-        item { AgendaCard() }
-        item { ExtrasEntryChip() }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Launcher(R.drawable.ic_grid, "Extras", Color(0xFF5B6CFF), Color(0xFF2E3AA8)) { ExtrasActivity.open(this@MainActivity, ExtrasActivity.PAGE_HOME) }
+                Launcher(R.drawable.ic_tune, "Settings", Color(0xFF8E96B8), Color(0xFF3A3F5C)) { page = PAGE_SETTINGS }
+            }
+        }
+    }
+
+    /** Weather and the next calendar event from the iPhone in one card; hidden when neither is known. */
+    @Composable
+    private fun TodayGlance() {
+        val w by LinkService.weather.collectAsState()
+        val events by LinkService.events.collectAsState()
+        val next = events.firstOrNull { it.end > System.currentTimeMillis() }
+        if (w == null && next == null) return
+        val fmt = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF1E3A8A), Color(0xFF0E7490))))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            w?.let { weather ->
+                Text(weatherSymbol(weather.code), fontSize = 22.sp)
+                Spacer(Modifier.size(6.dp))
+                Text("${weather.tempC.toInt()}°", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(Modifier.size(10.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                if (next != null) {
+                    Text(if (next.allDay) "All day" else fmt.format(Date(next.start)),
+                        style = MaterialTheme.typography.caption3, color = Color.White.copy(alpha = 0.75f))
+                    Text(next.title.ifEmpty { "Event" }, style = MaterialTheme.typography.caption2, color = Color.White,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                } else w?.let { weather ->
+                    Text("H ${weather.highC.toInt()}° · L ${weather.lowC.toInt()}°", style = MaterialTheme.typography.caption3,
+                        color = Color.White.copy(alpha = 0.85f))
+                    Text(weather.place.ifEmpty { "Weather" }, style = MaterialTheme.typography.caption2, color = Color.White,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
     }
 
     @Composable
@@ -336,8 +378,7 @@ class MainActivity : ComponentActivity() {
     private fun ScalingLazyListScope.musicPage() {
         item { PageTitle("Music") }
         item { MusicControls() }
-        item { ExtrasEntryChip(ExtrasActivity.PAGE_MEDIA, "More controls", "Seek, like, skip 15 s") }
-        item { ExtrasEntryChip(ExtrasActivity.PAGE_MUSIC, "Music on watch", "Play offline to earbuds") }
+        item { ExtrasEntryChip(ExtrasActivity.PAGE_MEDIA, "More controls", "Seek, like, offline music") }
     }
 
     @Composable
@@ -509,11 +550,6 @@ class MainActivity : ComponentActivity() {
         item { Toggle("Incoming calls", WatchSettings.CALLS) }
         item { Toggle("Clear on iPhone too", WatchSettings.CLEAR_ON_IPHONE) }
         item { Toggle("Music controls", WatchSettings.MUSIC) }
-        item { SectionLabel("Apple Health sync") }
-        item { Toggle("Heart rate", WatchSettings.SYNC_HEART) }
-        item { Toggle("Steps", WatchSettings.SYNC_STEPS) }
-        item { Toggle("Active energy", WatchSettings.SYNC_ENERGY) }
-        item { Toggle("Distance", WatchSettings.SYNC_DISTANCE) }
         item { SectionLabel("Let iPhone change") }
         item { PermissionChips() }
         item { SectionLabel("Phone") }
@@ -632,7 +668,7 @@ private fun HeroRing() {
     val spin by rememberInfiniteTransition(label = "spin").animateFloat(
         0f, 360f, infiniteRepeatable(tween(2400, easing = androidx.compose.animation.core.LinearEasing)), label = "spin")
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(top = 26.dp).size(118.dp)) {
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(top = 24.dp).size(104.dp)) {
         Canvas(Modifier.fillMaxSize()) {
             val w = 7.dp.toPx()
             drawCircle(Brush.radialGradient(listOf(glow.copy(alpha = 0.30f * pulse), Color.Transparent)))

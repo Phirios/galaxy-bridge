@@ -528,6 +528,86 @@ struct FeatureTileGrid: View {
     }
 }
 
+/// Every companion feature on one compact panel: pick a category, then a 4-across icon grid.
+/// Keeps the Watch tab to roughly one screen instead of a long run of tile sections.
+struct FeatureLauncher: View {
+    @AppStorage("launcher.category") private var category = 0
+
+    private struct Item: Identifiable {
+        let title: String, symbol: String, color: Color
+        let dest: AnyView
+        var id: String { title }
+    }
+
+    private static let names = ["Customise", "Connect", "Media", "Tools"]
+
+    private var items: [Item] {
+        switch category {
+        case 0: return [
+            Item(title: "Gallery", symbol: "sparkles", color: .pink, dest: AnyView(FaceGalleryView())),
+            Item(title: "Faces", symbol: "paintpalette.fill", color: .orange, dest: AnyView(WatchFacesView())),
+            Item(title: "Schedule", symbol: "clock.arrow.2.circlepath", color: .purple, dest: AnyView(FaceScheduleView())),
+            Item(title: "Apps", symbol: "square.grid.2x2.fill", color: .blue, dest: AnyView(AppsView())),
+            Item(title: "Tiles", symbol: "rectangle.stack.fill", color: .teal, dest: AnyView(TilesInfoView())),
+            Item(title: "Tile manager", symbol: "square.stack.3d.up.fill", color: .mint, dest: AnyView(TileManagerView())),
+            Item(title: "Widget", symbol: "rectangle.3.group.fill", color: .cyan, dest: AnyView(WidgetsView())),
+        ]
+        case 1: return [
+            Item(title: "Calls", symbol: "phone.fill", color: .green, dest: AnyView(CallsView())),
+            Item(title: "Favourites", symbol: "star.fill", color: .yellow, dest: AnyView(CallsFavouritesView())),
+            Item(title: "Contacts", symbol: "person.crop.circle.fill", color: .gray, dest: AnyView(ContactsView())),
+            Item(title: "Safety", symbol: "sos", color: .red, dest: AnyView(SafetyView())),
+            Item(title: "Reminders", symbol: "checklist", color: .orange, dest: AnyView(RemindersView())),
+            Item(title: "Alarms", symbol: "alarm.fill", color: .indigo, dest: AnyView(AlarmsView())),
+        ]
+        case 2: return [
+            Item(title: "Music", symbol: "music.note.list", color: .purple, dest: AnyView(WatchMusicView())),
+            Item(title: "iPhone media", symbol: "airplayaudio", color: .red, dest: AnyView(IPhoneMediaView())),
+            Item(title: "Photos", symbol: "photo.fill", color: .pink, dest: AnyView(PhotosToWatchView())),
+            Item(title: "Recordings", symbol: "waveform", color: .cyan, dest: AnyView(RecordingsView())),
+            Item(title: "Clicker", symbol: "rectangle.on.rectangle.angled", color: .orange, dest: AnyView(ClickerInfoView())),
+        ]
+        default: return [
+            Item(title: "Translate", symbol: "character.bubble.fill", color: .blue, dest: AnyView(TranslateView())),
+            Item(title: "World clock", symbol: "globe", color: .teal, dest: AnyView(WorldClockView())),
+            Item(title: "Checklist", symbol: "checklist.checked", color: .green, dest: AnyView(ChecklistView())),
+            Item(title: "Passes", symbol: "qrcode", color: .indigo, dest: AnyView(PassesView())),
+            Item(title: "Home", symbol: "house.fill", color: .yellow, dest: AnyView(HomeShortcutsView())),
+        ]
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Picker("Category", selection: $category) {
+                ForEach(Self.names.indices, id: \.self) { Text(Self.names[$0]).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 14) {
+                ForEach(items) { item in
+                    NavigationLink { item.dest } label: { icon(item) }.buttonStyle(PressScale())
+                }
+            }
+            .animation(.snappy, value: category)
+        }
+        .padding(14)
+        .card(cornerRadius: 22)
+    }
+
+    private func icon(_ i: Item) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: i.symbol).font(.system(size: 19, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 50, height: 50)
+                .background(i.color.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .shadow(color: i.color.opacity(0.45), radius: 6, y: 3)
+            Text(i.title).font(.caption2.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
+                .lineLimit(1).minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
 /// Blood oxygen and skin temperature from the watch's Samsung-only sensors, written to Apple
 /// Health. These need Samsung Health's developer mode on (one-time, on the watch); the watch
 /// then streams the sensors through Samsung's own tracking service.

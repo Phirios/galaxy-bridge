@@ -48,7 +48,6 @@ private struct HomeView: View {
     @Binding var tab: Int
     @State private var showCamera = false
     @State private var showGallery = false
-    @State private var confirmForget = false
 
     private var connected: Bool { link.status == .connected }
 
@@ -58,9 +57,9 @@ private struct HomeView: View {
                 HStack { Wordmark(); Spacer() }
                     .padding(.top, 4)
 
-                LiveCard()
-
                 hero
+
+                LiveCard(tab: $tab)
 
                 HStack(spacing: 6) {
                     OrbButton(title: link.findingWatch ? "Stop" : "Find", symbol: link.findingWatch ? "speaker.slash.fill" : "speaker.wave.3.fill",
@@ -81,55 +80,7 @@ private struct HomeView: View {
                 if let off = link.watchStatus?.clockOffset, abs(off) > 60 { ClockWarningCard(offset: off) }
                 if !health.authorized { HealthAccessCard() }
 
-                SectionTitle(text: "Today")
-                Button { tab = 1 } label: { TodayCard(summary: health.summary) }.buttonStyle(PressScale())
-
-                SectionTitle(text: "Your watch")
-                InfoGrid()
-                SyncCard()
-
-                SectionTitle(text: "Customise")
-                FeatureTileGrid(items: [
-                    FeatureTile(title: "Face gallery", sub: "\(FaceCatalog.all.count) free faces", symbol: "sparkles", color: .pink, dest: AnyView(FaceGalleryView())),
-                    FeatureTile(title: "Watch faces", sub: "On your watch now", symbol: "paintpalette.fill", color: .orange, dest: AnyView(WatchFacesView())),
-                    FeatureTile(title: "Watch apps", sub: "Open or uninstall", symbol: "square.grid.2x2.fill", color: .blue, dest: AnyView(AppsView())),
-                    FeatureTile(title: "Tiles", sub: "Swipe from the face", symbol: "rectangle.stack.fill", color: .teal, dest: AnyView(TilesInfoView())),
-                    FeatureTile(title: "Face schedule", sub: "Switch by time of day", symbol: "clock.arrow.2.circlepath", color: .pink, dest: AnyView(FaceScheduleView())),
-                    FeatureTile(title: "Tile manager", sub: "What's on the watch", symbol: "square.stack.3d.up.fill", color: .mint, dest: AnyView(TileManagerView())),
-                ])
-
-                SectionTitle(text: "Stay in touch")
-                FeatureTileGrid(items: [
-                    FeatureTile(title: "Calls & texts", sub: "Answer, call, hang up", symbol: "phone.fill", color: .green, dest: AnyView(CallsView())),
-                    FeatureTile(title: "Contacts", sub: "Copy to the watch", symbol: "person.crop.circle.fill", color: .gray, dest: AnyView(ContactsView())),
-                    FeatureTile(title: "Reminders", sub: "Tile on the watch", symbol: "checklist", color: .orange, dest: AnyView(RemindersView())),
-                    FeatureTile(title: "Alarms & timers", sub: "Set on the watch", symbol: "alarm.fill", color: .indigo, dest: AnyView(AlarmsView())),
-                    FeatureTile(title: "Favourites", sub: "Recents & quick replies", symbol: "star.fill", color: .yellow, dest: AnyView(CallsFavouritesView())),
-                    FeatureTile(title: "Safety", sub: "SOS, falls, heart rate", symbol: "sos", color: .red, dest: AnyView(SafetyView())),
-                ])
-
-                SectionTitle(text: "Photos & recordings")
-                FeatureTileGrid(items: [
-                    FeatureTile(title: "Photos", sub: "Send to Gallery", symbol: "photo.fill", color: .purple, dest: AnyView(PhotosToWatchView())),
-                    FeatureTile(title: "Voice recordings", sub: "Copy from watch", symbol: "waveform", color: .cyan, dest: AnyView(RecordingsView())),
-                ])
-
-                SectionTitle(text: "Media")
-                FeatureTileGrid(items: [
-                    FeatureTile(title: "Music on watch", sub: "Offline to earbuds", symbol: "music.note.list", color: .purple, dest: AnyView(WatchMusicView())),
-                    FeatureTile(title: "iPhone media", sub: "Seek, output", symbol: "airplayaudio", color: .red, dest: AnyView(IPhoneMediaView())),
-                    FeatureTile(title: "Clicker", sub: "Slides from the bezel", symbol: "rectangle.on.rectangle.angled", color: .orange, dest: AnyView(ClickerInfoView())),
-                ])
-
-                SectionTitle(text: "Productivity")
-                FeatureTileGrid(items: [
-                    FeatureTile(title: "Translate", sub: "Speak on the watch", symbol: "character.bubble.fill", color: .blue, dest: AnyView(TranslateView())),
-                    FeatureTile(title: "World clock", sub: "Cities on a tile", symbol: "globe", color: .teal, dest: AnyView(WorldClockView())),
-                    FeatureTile(title: "Checklist", sub: "Two-way Reminders", symbol: "checklist.checked", color: .green, dest: AnyView(ChecklistView())),
-                    FeatureTile(title: "Passes", sub: "QR tickets on the watch", symbol: "qrcode", color: .indigo, dest: AnyView(PassesView())),
-                    FeatureTile(title: "Home shortcuts", sub: "Scenes from a tile", symbol: "house.fill", color: .yellow, dest: AnyView(HomeShortcutsView())),
-                    FeatureTile(title: "Widget", sub: "Live Activity, Lock Screen", symbol: "rectangle.3.group.fill", color: .cyan, dest: AnyView(WidgetsView())),
-                ])
+                FeatureLauncher()
 
                 if let error = link.lastError ?? health.lastError {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -137,15 +88,6 @@ private struct HomeView: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding().card()
                 }
 
-                Button(role: .destructive) { confirmForget = true } label: {
-                    Text("Forget this watch").font(.footnote.weight(.semibold)).frame(maxWidth: .infinity)
-                }
-                .padding(.top, 8)
-                .confirmationDialog("Forget this watch?", isPresented: $confirmForget, titleVisibility: .visible) {
-                    Button("Forget", role: .destructive) { link.forgetWatch() }
-                } message: {
-                    Text("Also tap Forget iPhone on the watch, then remove it in Settings → Bluetooth.")
-                }
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 40)
@@ -157,21 +99,41 @@ private struct HomeView: View {
         .toast($hub.toast)
     }
 
+    /// Compact header: the watch beside its name, face, link status, battery and signal.
     private var hero: some View {
-        VStack(spacing: 6) {
-            WatchRender(battery: link.watchBattery, connected: connected, face: hub.faceImage)
-            Text(link.watchStatus.map { WatchNames.marketingName($0.model) } ?? "Galaxy Watch")
-                .font(.title2.weight(.bold)).foregroundStyle(.white)
-            if let face = hub.faceName { Text(face).font(.caption).foregroundStyle(.white.opacity(0.6)) }
-            StatusPill(status: link.status)
+        let st = link.watchStatus
+        return HStack(spacing: 16) {
+            WatchRender(battery: link.watchBattery, connected: connected, face: hub.faceImage, size: 112)
+                .frame(width: 124, height: 140)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(st.map { WatchNames.marketingName($0.model) } ?? "Galaxy Watch")
+                    .font(.title3.weight(.bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.8)
+                if let face = hub.faceName {
+                    Text(face).font(.caption).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                }
+                StatusPill(status: link.status)
+                HStack(spacing: 12) {
+                    Label(link.watchBattery.map { "\($0)%" } ?? "–",
+                          systemImage: st?.charging == true ? "battery.100.bolt" : "battery.75percent")
+                    if let rssi = link.rssi {
+                        Label(rssi > -65 ? "Strong" : rssi > -80 ? "Good" : "Weak", systemImage: "antenna.radiowaves.left.and.right")
+                    }
+                    if let st, st.totalMB > 0 {
+                        Label("\((st.freeMB / 1000).formatted()) GB", systemImage: "internaldrive")
+                    }
+                }
+                .font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.75)).labelStyle(.titleAndIcon)
+            }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
     }
 }
 
 /// Live snapshot at the top of the dashboard: latest heart rate and SpO₂ from the watch's
 /// sensors, plus the watch's and this iPhone's battery. Values fall back to "–" until they arrive.
 private struct LiveCard: View {
+    @Binding var tab: Int
     @EnvironmentObject var link: WatchLink
     @EnvironmentObject var health: HealthSync
     @EnvironmentObject var phone: PhoneServices
@@ -185,9 +147,8 @@ private struct LiveCard: View {
             metric(symbol: "lungs.fill", color: Theme.accent2, title: "SpO₂",
                    value: s.spo2.map { "\(Int($0.rounded()))" } ?? "–", unit: "%")
             divider
-            metric(symbol: link.watchStatus?.charging == true ? "applewatch.radiowaves.left.and.right" : "applewatch",
-                   color: Theme.steps, title: "Watch",
-                   value: link.watchBattery.map { "\($0)" } ?? "–", unit: "%")
+            metric(symbol: "figure.walk", color: Theme.steps, title: "Steps",
+                   value: Int(s.steps).formatted(), unit: "")
             divider
             metric(symbol: phone.phoneCharging ? "battery.100.bolt" : "iphone",
                    color: Theme.accent, title: "Phone",
@@ -196,6 +157,8 @@ private struct LiveCard: View {
         .padding(16)
         .frame(maxWidth: .infinity)
         .card()
+        .contentShape(Rectangle())
+        .onTapGesture { tab = 1 }
     }
 
     private var divider: some View {
