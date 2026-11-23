@@ -486,65 +486,27 @@ final class FeatureHub: ObservableObject {
 
 // MARK: - Screens
 
-struct MoreView: View {
-    @EnvironmentObject var hub: FeatureHub
-    @EnvironmentObject var link: WatchLink
+/// One feature tile that opens a screen. Grouped into grids on the Watch and Health tabs, next to
+/// the features they belong with.
+struct FeatureTile: Identifiable {
+    let title: String, sub: String, symbol: String, color: Color
+    let dest: AnyView
+    var id: String { title }
+}
 
-    private struct Item: Identifiable {
-        let title: String, sub: String, symbol: String, color: Color
-        let dest: AnyView
-        var id: String { title }
-    }
-
-    private var groups: [(String, [Item])] {
-        [
-            ("Customise", [
-                Item(title: "Face gallery", sub: "\(FaceCatalog.all.count) free faces", symbol: "sparkles", color: .pink, dest: AnyView(FaceGalleryView())),
-                Item(title: "Watch faces", sub: "On your watch now", symbol: "paintpalette.fill", color: .orange, dest: AnyView(WatchFacesView())),
-                Item(title: "Google Play", sub: "Faces and apps", symbol: "bag.fill", color: .green, dest: AnyView(StoreScreen())),
-                Item(title: "Watch apps", sub: "Open or uninstall", symbol: "square.grid.2x2.fill", color: .blue, dest: AnyView(AppsView())),
-                Item(title: "Tiles", sub: "Swipe from the face", symbol: "rectangle.stack.fill", color: .teal, dest: AnyView(TilesInfoView())),
-            ]),
-            ("Stay in touch", [
-                Item(title: "Notifications", sub: "Apps and types", symbol: "bell.badge.fill", color: .red, dest: AnyView(NotificationFiltersView())),
-                Item(title: "Contacts", sub: "Copy to the watch", symbol: "person.crop.circle.fill", color: .gray, dest: AnyView(ContactsView())),
-                Item(title: "Reminders", sub: "Tile on the watch", symbol: "checklist", color: .orange, dest: AnyView(RemindersView())),
-                Item(title: "Alarms & timers", sub: "Set on the watch", symbol: "alarm.fill", color: .indigo, dest: AnyView(AlarmsView())),
-                Item(title: "Calls & texts", sub: "Answer, call, hang up", symbol: "phone.fill", color: .green, dest: AnyView(CallsView())),
-            ]),
-            ("Media & activity", [
-                Item(title: "Photos", sub: "Send to Gallery", symbol: "photo.fill", color: .purple, dest: AnyView(PhotosToWatchView())),
-                Item(title: "Voice recordings", sub: "Copy from watch", symbol: "waveform", color: .cyan, dest: AnyView(RecordingsView())),
-                Item(title: "Workouts", sub: "Saved to Health", symbol: "figure.run", color: .green, dest: AnyView(WorkoutsInfoView())),
-                Item(title: "Body sensors", sub: "SpO₂ & skin temp", symbol: "heart.text.square.fill", color: .red, dest: AnyView(BodySensorsView())),
-                Item(title: "Sounds", sub: "Ringtone and alerts", symbol: "speaker.wave.2.fill", color: .yellow, dest: AnyView(SoundsView())),
-            ]),
-            ("Pairing & setup", [
-                Item(title: "Native pairing", sub: "UKEY2, experimental", symbol: "lock.shield.fill", color: .blue, dest: AnyView(NativePairingView())),
-            ]),
-        ]
-    }
+/// Two-column grid of feature tiles.
+struct FeatureTileGrid: View {
+    let items: [FeatureTile]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                ForEach(groups, id: \.0) { group in
-                    SectionTitle(text: group.0)
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                        ForEach(group.1) { item in
-                            NavigationLink { item.dest } label: { tile(item) }.buttonStyle(PressScale())
-                        }
-                    }
-                }
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            ForEach(items) { item in
+                NavigationLink { item.dest } label: { tile(item) }.buttonStyle(PressScale())
             }
-            .padding(16)
         }
-        .auroraScreen()
-        .navigationTitle("More")
-        .toast($hub.toast)
     }
 
-    private func tile(_ i: Item) -> some View {
+    private func tile(_ i: FeatureTile) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: i.symbol).font(.system(size: 18, weight: .semibold)).foregroundStyle(.white)
                 .frame(width: 40, height: 40)

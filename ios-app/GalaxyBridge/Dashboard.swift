@@ -28,7 +28,6 @@ private struct MainTabs: View {
             NavigationStack { HomeView(tab: $tab) }.tabItem { Label("Watch", systemImage: "applewatch.side.right") }.tag(0)
             NavigationStack { HealthView() }.tabItem { Label("Health", systemImage: "heart.fill") }.tag(1)
             NavigationStack { StoreScreen() }.tabItem { Label("Store", systemImage: "bag.fill") }.tag(2)
-            NavigationStack { MoreView() }.tabItem { Label("More", systemImage: "square.grid.2x2.fill") }.tag(3)
             NavigationStack { WatchSettingsView() }.tabItem { Label("Settings", systemImage: "gearshape.fill") }.tag(4)
         }
         .task {
@@ -88,6 +87,28 @@ private struct HomeView: View {
                 SectionTitle(text: "Your watch")
                 InfoGrid()
                 SyncCard()
+
+                SectionTitle(text: "Customise")
+                FeatureTileGrid(items: [
+                    FeatureTile(title: "Face gallery", sub: "\(FaceCatalog.all.count) free faces", symbol: "sparkles", color: .pink, dest: AnyView(FaceGalleryView())),
+                    FeatureTile(title: "Watch faces", sub: "On your watch now", symbol: "paintpalette.fill", color: .orange, dest: AnyView(WatchFacesView())),
+                    FeatureTile(title: "Watch apps", sub: "Open or uninstall", symbol: "square.grid.2x2.fill", color: .blue, dest: AnyView(AppsView())),
+                    FeatureTile(title: "Tiles", sub: "Swipe from the face", symbol: "rectangle.stack.fill", color: .teal, dest: AnyView(TilesInfoView())),
+                ])
+
+                SectionTitle(text: "Stay in touch")
+                FeatureTileGrid(items: [
+                    FeatureTile(title: "Calls & texts", sub: "Answer, call, hang up", symbol: "phone.fill", color: .green, dest: AnyView(CallsView())),
+                    FeatureTile(title: "Contacts", sub: "Copy to the watch", symbol: "person.crop.circle.fill", color: .gray, dest: AnyView(ContactsView())),
+                    FeatureTile(title: "Reminders", sub: "Tile on the watch", symbol: "checklist", color: .orange, dest: AnyView(RemindersView())),
+                    FeatureTile(title: "Alarms & timers", sub: "Set on the watch", symbol: "alarm.fill", color: .indigo, dest: AnyView(AlarmsView())),
+                ])
+
+                SectionTitle(text: "Photos & recordings")
+                FeatureTileGrid(items: [
+                    FeatureTile(title: "Photos", sub: "Send to Gallery", symbol: "photo.fill", color: .purple, dest: AnyView(PhotosToWatchView())),
+                    FeatureTile(title: "Voice recordings", sub: "Copy from watch", symbol: "waveform", color: .cyan, dest: AnyView(RecordingsView())),
+                ])
 
                 if let error = link.lastError ?? health.lastError {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -258,6 +279,7 @@ private struct InfoGrid: View {
 
 private struct HealthView: View {
     @EnvironmentObject var health: HealthSync
+    @EnvironmentObject var hub: FeatureHub
 
     var body: some View {
         let s = health.summary
@@ -309,12 +331,12 @@ private struct HealthView: View {
                 }
 
                 SyncCard()
-                NavigationLink { WorkoutsInfoView() } label: {
-                    Label("Record a workout on the watch", systemImage: "figure.run")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(16).card()
-                }
-                .buttonStyle(PressScale())
+
+                SectionTitle(text: "Sensors & workouts")
+                FeatureTileGrid(items: [
+                    FeatureTile(title: "Body sensors", sub: "SpO₂, ECG, body comp", symbol: "heart.text.square.fill", color: .red, dest: AnyView(BodySensorsView())),
+                    FeatureTile(title: "Workouts", sub: "Saved to Health", symbol: "figure.run", color: .green, dest: AnyView(WorkoutsInfoView())),
+                ])
                 if !health.authorized { HealthAccessCard() }
             }
             .padding(.horizontal, 18)
@@ -322,6 +344,7 @@ private struct HealthView: View {
         }
         .background(AuroraBackground())
         .navigationTitle("Health")
+        .toast($hub.toast)
     }
 }
 

@@ -26,6 +26,9 @@ struct WatchSettingsView: View {
                 toggle("Mirror iPhone notifications", .notifications, symbol: "bell.badge.fill", color: .red)
                 toggle("Incoming calls", .calls, symbol: "phone.fill", color: .green)
                 toggle("Clearing on watch clears iPhone", .clearOnIPhone, symbol: "arrow.left.arrow.right", color: .blue)
+                NavigationLink { NotificationFiltersView() } label: {
+                    Label { Text("Choose apps and types") } icon: { icon("line.3.horizontal.decrease.circle.fill", .red) }
+                }
                 if let perms = s?.perms, !perms.ancs {
                     Label {
                         Text("On your iPhone, open Settings → Bluetooth, tap ⓘ next to the watch, and turn on **Share System Notifications**.")
@@ -48,6 +51,9 @@ struct WatchSettingsView: View {
                     LabeledContent("Signal", value: "\(rssi) dBm · \(rssi > -65 ? "Strong" : rssi > -80 ? "Good" : "Weak")")
                 }
                 NavigationLink("Connection history") { ConnectionHistoryView() }
+                NavigationLink { NativePairingView() } label: {
+                    Label { Text("Native pairing (experimental)") } icon: { icon("lock.shield.fill", .blue) }
+                }
             }
 
             Section("Music") {
@@ -138,7 +144,7 @@ struct WatchSettingsView: View {
             } header: {
                 Text("Apple Health")
             } footer: {
-                Text("Heart rate, steps, energy, distance and floors sync automatically. Blood oxygen, skin temperature and sleep need Samsung Health developer mode on the watch (set it up under More → Body sensors); turn them on to write their readings to Apple Health.")
+                Text("Heart rate, steps, energy, distance and floors sync automatically. Blood oxygen, skin temperature and sleep need Samsung Health developer mode on the watch (set it up under Health → Body sensors); turn them on to write their readings to Apple Health.")
             }
 
             Section {
@@ -190,6 +196,7 @@ struct WatchSettingsView: View {
         .auroraScreen()
         .navigationTitle("Watch settings")
         .navigationBarTitleDisplayMode(.inline)
+        .toast($hub.toast)
         .disabled(!connected)
         .onAppear { link.send(.getStatus) }
         .onChange(of: s?.settings[WatchSetting.brightness.rawValue]) { _, v in
