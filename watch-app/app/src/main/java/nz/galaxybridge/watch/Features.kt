@@ -31,6 +31,10 @@ object Features {
         "callFavourites", "callLogGet", "safetyConfig", "safetyGet", "findLoud", "quickReplies",
         // Wave C (health depth)
         "hdConfig", "hdGetState", "hdMeasureHrv",
+        // Wave D (media, customisation, productivity): handled in WaveD.kt.
+        "musicPush", "musicList", "musicDelete", "faceSchedule", "getFaceSchedule",
+        "qrPass", "qrPassDelete", "qrPassList", "homeScenes", "homeSceneResult",
+        "toolsConfig", "translateResult", "checklist", "getTileState",
     )
 
     private val PACKAGE = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z0-9_]+)+$")
@@ -78,6 +82,7 @@ object Features {
                 "callFavourites", "callLogGet", "safetyConfig", "safetyGet", "findLoud", "quickReplies" ->
                     CallsSafety.handle(s, type, j)
                 "hdConfig", "hdGetState", "hdMeasureHrv" -> HealthDepth.handle(s, type, j)
+                in WaveD.FROM_PHONE -> WaveD.handle(s, type, j)
             }
         }.onFailure { Log.w(TAG, "feature $type failed", it) }
     }

@@ -476,6 +476,9 @@ public enum GBFeature {
         "callLog", "safetyState", "sosAlert", "hrAlert", "findLoud", "quickReply",
         // Wave C (health depth): HRV/stress result and goals/auto-log state.
         "hrvResult", "hdState",
+        // Wave D (media, customisation, productivity)
+        "musicAck", "musicLib", "faceScheduleState", "qrPasses", "homeScene", "translate",
+        "checklistTick", "reminderAdd", "tileState", "mediaSeek",
     ]
     /// Phone → watch (must match Features.FROM_PHONE in the watch app).
     public static let toWatch: Set<String> = [
@@ -487,6 +490,10 @@ public enum GBFeature {
         "callFavourites", "callLogGet", "safetyConfig", "safetyGet", "findLoud", "quickReplies",
         // Wave C (health depth): config (goals, reminders, auto-log), state query, HRV measure.
         "hdConfig", "hdGetState", "hdMeasureHrv",
+        // Wave D (media, customisation, productivity)
+        "musicPush", "musicList", "musicDelete", "faceSchedule", "getFaceSchedule",
+        "qrPass", "qrPassDelete", "qrPassList", "homeScenes", "homeSceneResult",
+        "toolsConfig", "translateResult", "checklist", "getTileState",
     ]
 
     public static func message(_ type: String, _ body: [String: Any] = [:]) -> GBMessage? {

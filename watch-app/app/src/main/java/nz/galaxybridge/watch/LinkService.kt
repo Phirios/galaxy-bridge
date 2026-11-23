@@ -224,12 +224,14 @@ class LinkService : Service() {
         AutoLog.schedule(this)
         status.value = Status.WAITING
         CallsSafety.start(this)
+        WaveD.onServiceCreate(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
         CallsSafety.stop(this)
+        WaveD.onServiceDestroy(this)
         scope.cancel()
         runCatching { unregisterReceiver(bondReceiver) }
         runCatching { unregisterReceiver(faceReceiver) }

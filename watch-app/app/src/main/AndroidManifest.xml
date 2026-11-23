@@ -5,6 +5,7 @@
     <uses-feature android:name="android.hardware.type.watch" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BODY_SENSORS" />
@@ -346,6 +347,83 @@
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
             </intent-filter>
             <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_health" />
+        </service>
+
+        <!-- Wave D: media, customisation and productivity extras. -->
+        <activity
+            android:name=".ExtrasActivity"
+            android:exported="false"
+            android:label="Extras"
+            android:launchMode="singleTop"
+            android:theme="@android:style/Theme.DeviceDefault" />
+
+        <service
+            android:name=".MusicService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <receiver
+            android:name=".FaceScheduleReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".WorldClockTile"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_iphone"
+            android:label="World clock"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_stat_iphone" />
+        </service>
+
+        <service
+            android:name=".ToolsTile"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_iphone"
+            android:label="Tools: translate, calculator"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_stat_iphone" />
+        </service>
+
+        <service
+            android:name=".ChecklistTile"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_iphone"
+            android:label="Checklist (iPhone)"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_stat_iphone" />
+        </service>
+
+        <service
+            android:name=".PassesTile"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_iphone"
+            android:label="Passes and tickets"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_stat_iphone" />
+        </service>
+
+        <service
+            android:name=".HomeTile"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_iphone"
+            android:label="Home shortcuts (iPhone)"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_stat_iphone" />
         </service>
 
         <receiver
