@@ -45,6 +45,9 @@
     <uses-permission android:name="android.permission.DUMP" tools:ignore="ProtectedPermissions" />
     <!-- Watch faces have no launcher entry, so listing them needs to see all packages. Sideloaded app, not on Play. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <!-- Calls & safety: heart-rate alerts sample the HR sensor with the screen off. -->
+    <uses-permission android:name="android.permission.BODY_SENSORS_BACKGROUND" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
 
     <queries>
         <intent>
@@ -238,6 +241,58 @@
             android:exported="true"
             android:icon="@drawable/ic_stat_iphone"
             android:label="Now playing (iPhone)"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data android:name="androidx.wear.tiles.PREVIEW" android:resource="@drawable/ic_stat_iphone" />
+        </service>
+
+        <!-- Calls & safety (Wave B) -->
+        <activity
+            android:name=".CallsActivity"
+            android:exported="true"
+            android:label="Phone"
+            android:taskAffinity="nz.galaxybridge.watch.calls">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Launcher entry that starts the cancellable SOS countdown; can be mapped to a key double-press. -->
+        <activity
+            android:name=".SosActivity"
+            android:exported="true"
+            android:label="SOS"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="nz.galaxybridge.watch.sos"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".SafetyActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity="nz.galaxybridge.watch.safety" />
+
+        <receiver
+            android:name=".SafetyReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".CallsTile"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_iphone"
+            android:label="Calls &amp; SOS"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />

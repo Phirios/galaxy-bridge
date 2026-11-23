@@ -28,6 +28,7 @@ object Features {
         "camFrame", "camState", "getNotifApps", "getFace", "getFaces", "openFacePicker", "applyFace", "setDesign", "getDesign",
         "getSensors", "measureSensors", "openSensorSettings", "measureEcg", "measureBia",
         "install", "setBiaProfile", "call",
+        "callFavourites", "callLogGet", "safetyConfig", "safetyGet", "findLoud", "quickReplies",
     )
 
     private val PACKAGE = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z0-9_]+)+$")
@@ -72,6 +73,8 @@ object Features {
                 "measureSensors" -> measureSensors(s, j)
                 "measureEcg" -> measureEcg(s)
                 "measureBia" -> measureBia(s)
+                "callFavourites", "callLogGet", "safetyConfig", "safetyGet", "findLoud", "quickReplies" ->
+                    CallsSafety.handle(s, type, j)
             }
         }.onFailure { Log.w(TAG, "feature $type failed", it) }
     }
