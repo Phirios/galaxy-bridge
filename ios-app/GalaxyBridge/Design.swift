@@ -83,6 +83,7 @@ struct HealthSummaryCard<Extra: View>: View {
     var subtitle: String? = nil
     var showsChevron: Bool = false
     var largeValue: Bool = false
+    var compact: Bool = false
     @ViewBuilder var extra: () -> Extra
 
     init(
@@ -95,6 +96,7 @@ struct HealthSummaryCard<Extra: View>: View {
         subtitle: String? = nil,
         showsChevron: Bool = false,
         largeValue: Bool = false,
+        compact: Bool = false,
         @ViewBuilder extra: @escaping () -> Extra = { EmptyView() }
     ) {
         self.title = title
@@ -106,11 +108,12 @@ struct HealthSummaryCard<Extra: View>: View {
         self.subtitle = subtitle
         self.showsChevron = showsChevron
         self.largeValue = largeValue
+        self.compact = compact
         self.extra = extra
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: compact ? 6 : 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Label(title, systemImage: symbol)
                     .font(.subheadline.weight(.semibold))
@@ -118,7 +121,7 @@ struct HealthSummaryCard<Extra: View>: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                 Spacer(minLength: 4)
-                if let timestamp {
+                if !compact, let timestamp {
                     Text(timestamp)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -146,6 +149,13 @@ struct HealthSummaryCard<Extra: View>: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
+            }
+
+            if compact, let timestamp {
+                Text(timestamp)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
             if let subtitle {

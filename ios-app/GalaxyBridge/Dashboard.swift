@@ -390,7 +390,8 @@ private struct HealthView: View {
                         color: .cyan,
                         value: s.spo2.map { "\(Int($0.rounded()))" } ?? "–",
                         unit: "%",
-                        timestamp: s.spo2At?.formatted(.relative(presentation: .named))
+                        timestamp: s.spo2At?.formatted(.relative(presentation: .named)) ?? "No reading",
+                        compact: true
                     )
                     HealthSummaryCard(
                         title: "Resting HR",
@@ -398,7 +399,8 @@ private struct HealthView: View {
                         color: .pink,
                         value: s.restingHeartRate.map { "\(Int($0.rounded()))" } ?? "–",
                         unit: "bpm",
-                        timestamp: s.restingHeartRateAt?.formatted(.relative(presentation: .named))
+                        timestamp: s.restingHeartRateAt?.formatted(.relative(presentation: .named)) ?? "No reading",
+                        compact: true
                     )
                     HealthSummaryCard(
                         title: "Skin Temp",
@@ -406,7 +408,8 @@ private struct HealthView: View {
                         color: .orange,
                         value: s.skinTemp.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "–",
                         unit: "°C",
-                        timestamp: s.skinTempAt?.formatted(.relative(presentation: .named))
+                        timestamp: s.skinTempAt?.formatted(.relative(presentation: .named)) ?? "No reading",
+                        compact: true
                     )
                     HealthSummaryCard(
                         title: "Floors",
@@ -414,7 +417,8 @@ private struct HealthView: View {
                         color: .blue,
                         value: s.floors.formatted(.number.precision(.fractionLength(0))),
                         unit: "climbed",
-                        timestamp: "Today"
+                        timestamp: "Today",
+                        compact: true
                     )
                     NavigationLink { StressHrvView() } label: {
                         HealthSummaryCard(
@@ -423,7 +427,9 @@ private struct HealthView: View {
                             color: .purple,
                             value: depth.latestHrv?.stress.map(String.init) ?? "–",
                             unit: depth.latestHrv?.stressLabel ?? "estimate",
-                            showsChevron: true
+                            timestamp: depth.latestHrv.map { $0.at.formatted(.relative(presentation: .named)) } ?? "No reading",
+                            showsChevron: true,
+                            compact: true
                         )
                     }
                     .buttonStyle(.plain)
@@ -435,7 +441,8 @@ private struct HealthView: View {
                             value: "\(Int(depth.today.waterMl.rounded()))",
                             unit: "ml",
                             timestamp: "Today",
-                            showsChevron: true
+                            showsChevron: true,
+                            compact: true
                         )
                     }
                     .buttonStyle(.plain)
@@ -445,7 +452,8 @@ private struct HealthView: View {
                         color: .indigo,
                         value: sleepingHrText,
                         unit: "bpm",
-                        timestamp: "Today"
+                        timestamp: "Today",
+                        compact: true
                     )
                     HealthSummaryCard(
                         title: "Distance",
@@ -453,7 +461,8 @@ private struct HealthView: View {
                         color: .blue,
                         value: (s.distance / 1000).formatted(.number.precision(.fractionLength(2))),
                         unit: "km",
-                        timestamp: "Today"
+                        timestamp: "Today",
+                        compact: true
                     )
                 }
 
