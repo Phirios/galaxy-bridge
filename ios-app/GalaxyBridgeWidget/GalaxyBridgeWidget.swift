@@ -13,15 +13,6 @@ struct GalaxyBridgeWidgets: WidgetBundle {
     }
 }
 
-private enum Palette {
-    static let heart = Color(red: 1.0, green: 0.27, blue: 0.40)
-    static let steps = Color(red: 0.30, green: 0.92, blue: 0.52)
-    static let accent = Color(red: 0.16, green: 0.86, blue: 0.90)
-    static let ink = Color(red: 0.04, green: 0.04, blue: 0.10)
-    static let background = LinearGradient(colors: [Color(red: 0.16, green: 0.12, blue: 0.42), Color(red: 0.04, green: 0.12, blue: 0.20)],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing)
-}
-
 struct SnapshotEntry: TimelineEntry {
     let date: Date
     let snapshot: WatchSnapshot
@@ -46,7 +37,8 @@ struct SnapshotProvider: TimelineProvider {
 struct WatchStatusWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "WatchStatus", provider: SnapshotProvider()) { entry in
-            WatchStatusView(entry: entry).containerBackground(for: .widget) { Palette.background }
+            WatchStatusView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("Galaxy Watch")
         .description("Heart rate, steps and battery from your watch.")
@@ -78,22 +70,38 @@ struct WatchStatusView: View {
                 Text("\(text(s.steps)) steps · \(text(s.battery))%").font(.caption)
             }
         case .systemMedium:
-            HStack(spacing: 14) {
-                metric("heart.fill", Palette.heart, text(s.heartRate), "bpm")
-                metric("figure.walk", Palette.steps, text(s.steps), "steps")
-                metric(s.charging ? "battery.100.bolt" : "applewatch", Palette.accent, text(s.battery), "%")
+            VStack(spacing: 8) {
+                HStack(spacing: 14) {
+                    metric("heart.fill", .red, text(s.heartRate), "bpm")
+                    metric("figure.walk", .green, text(s.steps), "steps")
+                    metric(s.charging ? "battery.100.bolt" : "applewatch", .blue, text(s.battery), "%")
+                }
+                HStack {
+                    Spacer()
+                    footer
+                }
             }
-            .overlay(alignment: .bottomTrailing) { footer }
         default:
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Image(systemName: "heart.fill").foregroundStyle(Palette.heart)
-                    Text(text(s.heartRate)).font(.system(.title, design: .rounded).weight(.bold))
-                    Text("bpm").font(.caption2).foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Image(systemName: "heart.fill")
+                        .foregroundStyle(.red)
+                        .accessibilityHidden(true)
+                    Text(text(s.heartRate))
+                        .font(.system(.title, design: .rounded).weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.primary)
+                    Text("bpm")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
-                Label("\(text(s.steps)) steps", systemImage: "figure.walk").font(.caption).foregroundStyle(Palette.steps)
+                .accessibilityElement(children: .combine)
+                Label("\(text(s.steps)) steps", systemImage: "figure.walk")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.green)
                 Label("\(text(s.battery))%", systemImage: s.charging ? "battery.100.bolt" : "applewatch")
-                    .font(.caption).foregroundStyle(Palette.accent)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.blue)
                 Spacer(minLength: 0)
                 footer
             }
@@ -106,16 +114,27 @@ struct WatchStatusView: View {
             if s.updated == .distantPast { Text("Open the app once") }
             else { Text(s.updated, style: .relative) + Text(" ago") }
         }
-        .font(.caption2).foregroundStyle(.white.opacity(s.isFresh ? 0.6 : 0.4))
+        .font(.caption2)
+        .foregroundStyle(s.isFresh ? .secondary : .tertiary)
     }
 
     private func metric(_ symbol: String, _ color: Color, _ value: String, _ unit: String) -> some View {
         VStack(spacing: 4) {
-            Image(systemName: symbol).foregroundStyle(color)
-            Text(value).font(.system(.title3, design: .rounded).weight(.bold)).minimumScaleFactor(0.6).lineLimit(1)
-            Text(unit).font(.caption2).foregroundStyle(.secondary)
+            Image(systemName: symbol)
+                .foregroundStyle(color)
+                .accessibilityHidden(true)
+            Text(value)
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+            Text(unit)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -124,43 +143,56 @@ struct WatchLiveActivity: Widget {
         ActivityConfiguration(for: WatchActivityAttributes.self) { context in
             let s = context.state
             HStack(spacing: 16) {
-                Image(systemName: "applewatch").font(.title2).foregroundStyle(Palette.accent)
-                stat("heart.fill", Palette.heart, text(s.heartRate), "bpm")
-                stat("figure.walk", Palette.steps, text(s.steps), "steps")
-                stat("battery.75percent", Palette.accent, text(s.battery), "%")
+                Image(systemName: "applewatch")
+                    .font(.title2)
+                    .foregroundStyle(.blue)
+                    .accessibilityHidden(true)
+                stat("heart.fill", .red, text(s.heartRate), "bpm")
+                stat("figure.walk", .green, text(s.steps), "steps")
+                stat("battery.75percent", .blue, text(s.battery), "%")
             }
             .padding()
-            .activityBackgroundTint(Palette.ink)
-            .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             let s = context.state
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label(text(s.heartRate), systemImage: "heart.fill").foregroundStyle(Palette.heart).font(.title3.bold())
+                    Label(text(s.heartRate), systemImage: "heart.fill")
+                        .foregroundStyle(.red)
+                        .font(.title3.bold())
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Label("\(text(s.battery))%", systemImage: "applewatch").foregroundStyle(Palette.accent)
+                    Label("\(text(s.battery))%", systemImage: "applewatch")
+                        .foregroundStyle(.blue)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     Text("\(text(s.steps)) steps today · \(s.connected ? "connected" : "out of reach")")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             } compactLeading: {
-                Image(systemName: "heart.fill").foregroundStyle(Palette.heart)
+                Image(systemName: "heart.fill").foregroundStyle(.red)
             } compactTrailing: {
-                Text(text(s.heartRate)).foregroundStyle(Palette.heart)
+                Text(text(s.heartRate)).foregroundStyle(.red)
             } minimal: {
-                Text(text(s.heartRate)).foregroundStyle(Palette.heart)
+                Text(text(s.heartRate)).foregroundStyle(.red)
             }
         }
     }
 
     private func stat(_ symbol: String, _ color: Color, _ value: String, _ unit: String) -> some View {
         VStack(spacing: 2) {
-            Image(systemName: symbol).foregroundStyle(color)
-            Text(value).font(.system(.headline, design: .rounded)).foregroundStyle(.white)
-            Text(unit).font(.caption2).foregroundStyle(.white.opacity(0.6))
+            Image(systemName: symbol)
+                .foregroundStyle(color)
+                .accessibilityHidden(true)
+            Text(value)
+                .font(.system(.headline, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+            Text(unit)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }
