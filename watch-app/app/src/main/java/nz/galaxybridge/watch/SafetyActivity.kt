@@ -131,7 +131,8 @@ class SafetyActivity : ComponentActivity() {
     private fun Countdown(a: SafetyMonitor.Alert) {
         var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
         LaunchedEffect(a.endsAt) { while (true) { now = SystemClock.elapsedRealtime(); delay(200) } }
-        val total = CallsSafety.config.value.countdown.coerceAtLeast(CallsSafety.MIN_COUNTDOWN) * 1000f
+        val cfg by CallsSafety.config.collectAsState()
+        val total = cfg.countdown.coerceAtLeast(CallsSafety.MIN_COUNTDOWN) * 1000f
         val left = (a.endsAt - now).coerceAtLeast(0)
         val cs = MaterialTheme.colorScheme
         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 4.dp).size(84.dp)) {
