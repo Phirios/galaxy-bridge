@@ -21,15 +21,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.wear.compose.material.Button
-import androidx.wear.compose.material.ButtonDefaults
-import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.Text
+import androidx.wear.compose.material3.AppScaffold
+import androidx.wear.compose.material3.EdgeButton
+import androidx.wear.compose.material3.EdgeButtonSize
+import androidx.wear.compose.material3.FilledIconButton
+import androidx.wear.compose.material3.IconButtonDefaults
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.Text
 
 /** Full-screen incoming call (answer/decline on the iPhone) and "find my watch" screens. */
 class AlertActivity : ComponentActivity() {
@@ -45,8 +47,10 @@ class AlertActivity : ComponentActivity() {
         setTurnScreenOn(true)
         val mode = intent.getStringExtra(EXTRA_MODE)
         setContent {
-            MaterialTheme {
-                if (mode == MODE_FIND) FindScreen() else CallScreen()
+            BridgeTheme {
+                AppScaffold {
+                    if (mode == MODE_FIND) FindScreen() else CallScreen()
+                }
             }
         }
     }
@@ -56,28 +60,51 @@ class AlertActivity : ComponentActivity() {
         val call by PhoneNotifier.incomingCall.collectAsState()
         LaunchedEffect(call) { if (call == null) finish() }
         val c = call ?: return
-        Column(
-            Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0E3B2E), Color.Black))),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text("iPhone call", style = MaterialTheme.typography.caption2, color = Color.White.copy(alpha = 0.7f))
-            Text(c.caller, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
-                maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
-            Text(c.detail, style = MaterialTheme.typography.caption3, color = Color.White.copy(alpha = 0.6f),
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                RoundAction("✕", Color(0xFFE5484D), c.declineLabel) {
-                    LinkService.performAction(c.uid, positive = false); finish()
+        val cs = MaterialTheme.colorScheme
+        ScreenScaffold { contentPadding ->
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(BridgeTokens.CallAccept.copy(alpha = 0.25f), cs.background)))
+                    .padding(contentPadding),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text("iPhone call", style = MaterialTheme.typography.labelSmall, color = cs.onSurfaceVariant)
+                Text(
+                    c.caller,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = cs.onBackground,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+                if (c.detail.isNotEmpty()) {
+                    Text(
+                        c.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                RoundAction("✓", Color(0xFF30A46C), c.acceptLabel) {
-                    LinkService.performAction(c.uid, positive = true); finish()
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    RoundAction("✕", BridgeTokens.CallDecline, c.declineLabel) {
+                        LinkService.performAction(c.uid, positive = false); finish()
+                    }
+                    RoundAction("✓", BridgeTokens.CallAccept, c.acceptLabel) {
+                        LinkService.performAction(c.uid, positive = true); finish()
+                    }
                 }
+                Text(
+                    "Audio stays on your iPhone",
+                    style = MaterialTheme.typography.bodyExtraSmall,
+                    color = cs.onSurfaceVariant.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
-            Text("Audio stays on your iPhone", style = MaterialTheme.typography.caption3,
-                color = Color.White.copy(alpha = 0.45f), modifier = Modifier.padding(top = 10.dp))
         }
     }
 
@@ -85,17 +112,31 @@ class AlertActivity : ComponentActivity() {
     private fun FindScreen() {
         val ringing by LinkService.findingWatch.collectAsState()
         LaunchedEffect(ringing) { if (!ringing) finish() }
-        Box(
-            Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF5C6BFF), Color.Black))),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Here I am!", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Your iPhone is looking for this watch", style = MaterialTheme.typography.caption3,
-                    color = Color.White.copy(alpha = 0.8f), textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 6.dp))
-                Button(onClick = { LinkService.stopFindingWatch(); finish() },
-                    modifier = Modifier.size(72.dp)) { Text("Found") }
+        val cs = MaterialTheme.colorScheme
+        ScreenScaffold { contentPadding ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Brush.radialGradient(listOf(cs.primaryContainer.copy(alpha = 0.7f), cs.background))),
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.align(Alignment.Center).padding(contentPadding).padding(bottom = 36.dp),
+                ) {
+                    Text("Here I am!", style = MaterialTheme.typography.titleLarge, color = cs.onBackground)
+                    Text(
+                        "Your iPhone is looking for this watch",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
+                }
+                EdgeButton(
+                    onClick = { LinkService.stopFindingWatch(); finish() },
+                    buttonSize = EdgeButtonSize.Medium,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                ) { Text("Found") }
             }
         }
     }
@@ -103,12 +144,19 @@ class AlertActivity : ComponentActivity() {
     @Composable
     private fun RoundAction(symbol: String, color: Color, label: String, onClick: () -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Button(onClick = onClick, colors = ButtonDefaults.buttonColors(backgroundColor = color),
-                modifier = Modifier.size(56.dp)) {
-                Text(symbol, fontSize = 22.sp, color = Color.White)
+            FilledIconButton(
+                onClick = onClick,
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = color, contentColor = Color.White),
+                modifier = Modifier.size(56.dp),
+            ) {
+                Text(symbol, style = MaterialTheme.typography.titleLarge)
             }
-            Text(label.take(12), style = MaterialTheme.typography.caption3, color = Color.White.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 4.dp))
+            Text(
+                label.take(12),
+                style = MaterialTheme.typography.bodyExtraSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
