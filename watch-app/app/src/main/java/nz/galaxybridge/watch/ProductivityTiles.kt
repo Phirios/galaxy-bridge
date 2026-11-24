@@ -4,13 +4,24 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.concurrent.futures.CallbackToFutureAdapter
-import androidx.wear.protolayout.ActionBuilders
+import androidx.wear.protolayout.ColorBuilders.argb as protoArgb
 import androidx.wear.protolayout.DimensionBuilders.dp
 import androidx.wear.protolayout.DimensionBuilders.expand
+import androidx.wear.protolayout.DimensionBuilders.wrap
 import androidx.wear.protolayout.LayoutElementBuilders as L
 import androidx.wear.protolayout.ModifiersBuilders as M
 import androidx.wear.protolayout.ResourceBuilders
-import androidx.wear.protolayout.TimelineBuilders
+import androidx.wear.protolayout.material3.ButtonDefaults.filledTonalButtonColors
+import androidx.wear.protolayout.material3.Typography
+import androidx.wear.protolayout.material3.buttonGroup
+import androidx.wear.protolayout.material3.card
+import androidx.wear.protolayout.material3.compactButton
+import androidx.wear.protolayout.material3.primaryLayout
+import androidx.wear.protolayout.material3.text
+import androidx.wear.protolayout.modifiers.LayoutModifier
+import androidx.wear.protolayout.modifiers.background
+import androidx.wear.protolayout.modifiers.padding
+import androidx.wear.protolayout.types.layoutString
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
@@ -308,108 +319,254 @@ object WaveDTiles {
 
     /** A clickable that opens one page of [ExtrasActivity]. */
     fun open(c: Context, page: Int, id: String = "open:$page"): M.Clickable =
-        M.Clickable.Builder().setId(id).setOnClick(
-            ActionBuilders.LaunchAction.Builder().setAndroidActivity(
-                ActionBuilders.AndroidActivity.Builder().setPackageName(c.packageName)
-                    .setClassName(ExtrasActivity::class.java.name)
-                    .addKeyToExtraMapping(ExtrasActivity.EXTRA_PAGE, ActionBuilders.AndroidIntExtra.Builder().setValue(page).build())
-                    .build()).build()).build()
-
-    fun page(c: Context, page: Int, root: L.LayoutElement, freshMs: Long = 15 * 60_000L, resVersion: String = "1"): TileBuilders.Tile =
-        TileBuilders.Tile.Builder().setResourcesVersion(resVersion).setFreshnessIntervalMillis(freshMs)
-            .setTileTimeline(TimelineBuilders.Timeline.fromLayoutElement(
-                L.Box.Builder().setWidth(expand()).setHeight(expand())
-                    .setVerticalAlignment(L.VERTICAL_ALIGN_CENTER)
-                    .setModifiers(M.Modifiers.Builder().setClickable(open(c, page)).build())
-                    .addContent(root).build()))
-            .build()
-
-    /** A pill that opens a page of [ExtrasActivity] directly. */
-    fun launchChip(c: Context, label: String, page: Int, width: Float = 150f): L.LayoutElement =
-        L.Box.Builder().setWidth(dp(width))
-            .setModifiers(M.Modifiers.Builder().setClickable(open(c, page, "go:$page"))
-                .setBackground(M.Background.Builder().setColor(androidx.wear.protolayout.ColorBuilders.argb(Tiles.CHIP))
-                    .setCorner(M.Corner.Builder().setRadius(dp(18f)).build()).build())
-                .setPadding(M.Padding.Builder().setTop(dp(7f)).setBottom(dp(7f)).build()).build())
-            .addContent(Tiles.text(label, 14f, bold = true)).build()
+        Tiles.launchClickable(c, ExtrasActivity::class.java.name, id, mapOf(ExtrasActivity.EXTRA_PAGE to page))
 }
 
 class WorldClockTile : SimpleTile() {
-    override fun build(clicked: String): TileBuilders.Tile {
+    override fun build(request: RequestBuilders.TileRequest, clicked: String): TileBuilders.Tile {
         ToolsConfig.load(this)
         val now = Instant.now()
         val fmt = DateTimeFormatter.ofPattern("HH:mm")
         val today = LocalDate.now()
         val clocks = ToolsConfig.clocks.value.take(4)
-        val rows = clocks.map { cl ->
-            val z = now.atZone(ZoneId.of(cl.zone))
-            val dayDiff = z.toLocalDate().toEpochDay() - today.toEpochDay()
-            val day = when { dayDiff > 0 -> " +1"; dayDiff < 0 -> " −1"; else -> "" }
-            Tiles.row(Tiles.text(cl.label, 13f, Tiles.DIM), L.Spacer.Builder().setWidth(dp(8f)).build(),
-                Tiles.text(z.format(fmt) + day, 16f, bold = true))
+        val open = WaveDTiles.open(this, ExtrasActivity.PAGE_HOME)
+        return Tiles.materialTile(this, request, freshMs = 60_000L) {
+            primaryLayout(
+                titleSlot = { text("World clock".layoutString) },
+                mainSlot = {
+                    if (clocks.isEmpty()) {
+                        text(
+                            "Add cities in the iPhone app".layoutString,
+                            typography = Typography.BODY_SMALL,
+                            color = colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                        )
+                    } else {
+                        val rows = clocks.map { cl ->
+                            val z = now.atZone(ZoneId.of(cl.zone))
+                            val dayDiff = z.toLocalDate().toEpochDay() - today.toEpochDay()
+                            val day = when {
+                                dayDiff > 0 -> " +1"
+                                dayDiff < 0 -> " −1"
+                                else -> ""
+                            }
+                            Tiles.row(
+                                text(cl.label.layoutString, typography = Typography.BODY_SMALL, color = colorScheme.onSurfaceVariant, maxLines = 1),
+                                Tiles.widthSpace(8f),
+                                text((z.format(fmt) + day).layoutString, typography = Typography.NUMERAL_EXTRA_SMALL, color = colorScheme.onSurface),
+                            )
+                        }
+                        card(
+                            onClick = open,
+                            modifier = LayoutModifier.background(colorScheme.surfaceContainer),
+                            width = expand(),
+                            height = wrap(),
+                            contentPadding = padding(10f),
+                        ) {
+                            Tiles.spacedColumn(rows, spacing = 3f)
+                        }
+                    }
+                },
+                onClick = open,
+            )
         }
-        val body = if (rows.isEmpty()) arrayOf(Tiles.text("Add cities in the iPhone app", 13f, Tiles.DIM, lines = 2))
-        else rows.flatMap { listOf(it, Tiles.space(3f)) }.toTypedArray()
-        return WaveDTiles.page(this, ExtrasActivity.PAGE_HOME,
-            Tiles.column(Tiles.text("World clock", 12f, Tiles.DIM), Tiles.space(6f), *body), 60_000L)
     }
 }
 
 class ToolsTile : SimpleTile() {
-    override fun build(clicked: String): TileBuilders.Tile =
-        WaveDTiles.page(this, ExtrasActivity.PAGE_HOME, Tiles.column(
-            Tiles.text("Tools", 12f, Tiles.DIM), Tiles.space(6f),
-            WaveDTiles.launchChip(this, "Translate", ExtrasActivity.PAGE_TRANSLATE), Tiles.space(4f),
-            WaveDTiles.launchChip(this, "Calculator", ExtrasActivity.PAGE_CALC), Tiles.space(4f),
-            WaveDTiles.launchChip(this, "Convert", ExtrasActivity.PAGE_CONVERT)))
+    override fun build(request: RequestBuilders.TileRequest, clicked: String): TileBuilders.Tile {
+        val open = WaveDTiles.open(this, ExtrasActivity.PAGE_HOME)
+        val goTranslate = WaveDTiles.open(this, ExtrasActivity.PAGE_TRANSLATE, "go:${ExtrasActivity.PAGE_TRANSLATE}")
+        val goCalc = WaveDTiles.open(this, ExtrasActivity.PAGE_CALC, "go:${ExtrasActivity.PAGE_CALC}")
+        val goConvert = WaveDTiles.open(this, ExtrasActivity.PAGE_CONVERT, "go:${ExtrasActivity.PAGE_CONVERT}")
+        return Tiles.materialTile(this, request) {
+            primaryLayout(
+                titleSlot = { text("Tools".layoutString) },
+                mainSlot = {
+                    Tiles.spacedColumn(
+                        listOf(
+                            compactButton(
+                                onClick = goTranslate,
+                                width = expand(),
+                                colors = filledTonalButtonColors(),
+                                labelContent = { text("Translate".layoutString, maxLines = 1) },
+                            ),
+                            compactButton(
+                                onClick = goCalc,
+                                width = expand(),
+                                colors = filledTonalButtonColors(),
+                                labelContent = { text("Calculator".layoutString, maxLines = 1) },
+                            ),
+                            compactButton(
+                                onClick = goConvert,
+                                width = expand(),
+                                colors = filledTonalButtonColors(),
+                                labelContent = { text("Convert".layoutString, maxLines = 1) },
+                            ),
+                        ),
+                        spacing = 4f,
+                    )
+                },
+                onClick = open,
+            )
+        }
+    }
 }
 
 class ChecklistTile : SimpleTile() {
-    override fun build(clicked: String): TileBuilders.Tile {
+    override fun build(request: RequestBuilders.TileRequest, clicked: String): TileBuilders.Tile {
         if (clicked.startsWith("tick:")) Checklist.toggle(this, clicked.removePrefix("tick:"))
         val items = Checklist.load(this).sortedBy { it.done }.take(3)
-        val rows = items.map { i ->
-            Tiles.chip(this, Tiles.row(Tiles.text(if (i.done) "●  " else "○  ", 14f, Tiles.ACCENT),
-                Tiles.text(i.title.ifEmpty { "Item" }, 13f, if (i.done) Tiles.DIM else Tiles.WHITE)), id = "tick:${i.id}")
+        val open = WaveDTiles.open(this, ExtrasActivity.PAGE_CHECKLIST)
+        return Tiles.materialTile(this, request) {
+            primaryLayout(
+                titleSlot = { text(Checklist.list.value.ifEmpty { "Checklist" }.layoutString) },
+                mainSlot = {
+                    if (items.isEmpty()) {
+                        text(
+                            "Pick a list in the iPhone app".layoutString,
+                            typography = Typography.BODY_SMALL,
+                            color = colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                        )
+                    } else {
+                        Tiles.spacedColumn(
+                            items.map { i ->
+                                val mark = if (i.done) "●" else "○"
+                                compactButton(
+                                    onClick = Tiles.loadClickable("tick:${i.id}"),
+                                    width = expand(),
+                                    colors = filledTonalButtonColors(),
+                                    labelContent = {
+                                        text(
+                                            "$mark  ${i.title.ifEmpty { "Item" }}".layoutString,
+                                            color = if (i.done) colorScheme.onSurfaceVariant else colorScheme.onSurface,
+                                            maxLines = 1,
+                                        )
+                                    },
+                                )
+                            },
+                            spacing = 4f,
+                        )
+                    }
+                },
+                onClick = open,
+            )
         }
-        val body = if (rows.isEmpty()) arrayOf(Tiles.text("Pick a list in the iPhone app", 13f, Tiles.DIM, lines = 2))
-        else rows.flatMap { listOf(it, Tiles.space(4f)) }.toTypedArray()
-        return WaveDTiles.page(this, ExtrasActivity.PAGE_CHECKLIST, Tiles.column(
-            Tiles.text(Checklist.list.value.ifEmpty { "Checklist" }, 12f, Tiles.DIM), Tiles.space(6f), *body))
     }
 }
 
 class HomeTile : SimpleTile() {
-    override fun build(clicked: String): TileBuilders.Tile {
+    override fun build(request: RequestBuilders.TileRequest, clicked: String): TileBuilders.Tile {
         if (clicked.startsWith("scene:")) HomeScenes.run(this, clicked.removePrefix("scene:"))
         val scenes = HomeScenes.load(this).take(4)
-        val rows = scenes.map { Tiles.chip(this, Tiles.text(it.name, 13f, bold = true), id = "scene:${it.id}") }
         val status = HomeScenes.lastResult.value
-        val body = if (rows.isEmpty()) arrayOf(Tiles.text("Add shortcuts in the iPhone app", 13f, Tiles.DIM, lines = 2))
-        else rows.flatMap { listOf(it, Tiles.space(4f)) }.toTypedArray()
-        return WaveDTiles.page(this, ExtrasActivity.PAGE_HOME, Tiles.column(
-            Tiles.text("Home", 12f, Tiles.DIM), Tiles.space(6f), *body,
-            Tiles.text(status, 10f, Tiles.ACCENT, lines = 2)), 5 * 60_000L)
+        val open = WaveDTiles.open(this, ExtrasActivity.PAGE_HOME)
+        return Tiles.materialTile(this, request, freshMs = 5 * 60_000L) {
+            primaryLayout(
+                titleSlot = { text("Home".layoutString) },
+                mainSlot = {
+                    if (scenes.isEmpty()) {
+                        text(
+                            "Add shortcuts in the iPhone app".layoutString,
+                            typography = Typography.BODY_SMALL,
+                            color = colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                        )
+                    } else if (scenes.size == 4) {
+                        Tiles.spacedColumn(
+                            scenes.chunked(2).map { pair ->
+                                buttonGroup(height = wrap()) {
+                                    for (s in pair) {
+                                        buttonGroupItem {
+                                            compactButton(
+                                                onClick = Tiles.loadClickable("scene:${s.id}"),
+                                                width = expand(),
+                                                colors = filledTonalButtonColors(),
+                                                labelContent = { text(s.name.layoutString, maxLines = 1) },
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            spacing = 4f,
+                        )
+                    } else {
+                        Tiles.spacedColumn(
+                            scenes.map { s ->
+                                compactButton(
+                                    onClick = Tiles.loadClickable("scene:${s.id}"),
+                                    width = expand(),
+                                    colors = filledTonalButtonColors(),
+                                    labelContent = { text(s.name.layoutString, maxLines = 1) },
+                                )
+                            },
+                            spacing = 4f,
+                        )
+                    }
+                },
+                bottomSlot = if (status.isNotEmpty()) {
+                    { text(status.layoutString, typography = Typography.BODY_EXTRA_SMALL, color = colorScheme.secondary, maxLines = 1) }
+                } else null,
+                onClick = open,
+            )
+        }
     }
 }
 
 /** Shows the newest pass's image right on the tile; tap for full screen at full brightness. */
 class PassesTile : SimpleTile() {
-    override fun build(clicked: String): TileBuilders.Tile {
+    @Suppress("DEPRECATION")
+    override fun build(request: RequestBuilders.TileRequest, clicked: String): TileBuilders.Tile {
         val pass = QrPasses.load(this).firstOrNull()
-            ?: return WaveDTiles.page(this, ExtrasActivity.PAGE_PASSES, Tiles.column(
-                Tiles.text("Passes", 12f, Tiles.DIM), Tiles.space(6f),
-                Tiles.text("Send a ticket or boarding pass from the iPhone app", 12f, Tiles.DIM, lines = 3)))
-        val img = L.Image.Builder().setResourceId("pass").setWidth(dp(110f)).setHeight(dp(110f))
-            .setContentScaleMode(L.CONTENT_SCALE_MODE_FIT).build()
-        return WaveDTiles.page(this, ExtrasActivity.PAGE_PASSES, Tiles.column(
-            Tiles.text(pass.title, 12f, Tiles.DIM), Tiles.space(4f),
-            L.Box.Builder().setModifiers(M.Modifiers.Builder().setBackground(M.Background.Builder()
-                .setColor(androidx.wear.protolayout.ColorBuilders.argb(0xFFFFFFFF.toInt()))
-                .setCorner(M.Corner.Builder().setRadius(dp(8f)).build()).build())
-                .setPadding(M.Padding.Builder().setAll(dp(4f)).build()).build())
-                .addContent(img).build(),
-            Tiles.text(pass.sub, 10f, Tiles.DIM)), resVersion = pass.id)
+        val open = WaveDTiles.open(this, ExtrasActivity.PAGE_PASSES)
+        if (pass == null) {
+            return Tiles.materialTile(this, request) {
+                primaryLayout(
+                    titleSlot = { text("Passes".layoutString) },
+                    mainSlot = {
+                        text(
+                            "Send a ticket or boarding pass from the iPhone app".layoutString,
+                            typography = Typography.BODY_SMALL,
+                            color = colorScheme.onSurfaceVariant,
+                            maxLines = 3,
+                        )
+                    },
+                    onClick = open,
+                )
+            }
+        }
+        val img = L.Image.Builder()
+            .setResourceId("pass")
+            .setWidth(dp(106f))
+            .setHeight(dp(106f))
+            .setContentScaleMode(L.CONTENT_SCALE_MODE_FIT)
+            .build()
+        return Tiles.materialTile(this, request, resVersion = pass.id) {
+            primaryLayout(
+                titleSlot = { text(pass.title.layoutString) },
+                mainSlot = {
+                    L.Box.Builder()
+                        .setModifiers(
+                            M.Modifiers.Builder()
+                                .setBackground(
+                                    M.Background.Builder()
+                                        .setColor(protoArgb(0xFFFFFFFF.toInt()))
+                                        .setCorner(M.Corner.Builder().setRadius(dp(10f)).build())
+                                        .build(),
+                                )
+                                .setPadding(M.Padding.Builder().setAll(dp(5f)).build())
+                                .build(),
+                        )
+                        .addContent(img)
+                        .build()
+                },
+                bottomSlot = if (pass.sub.isNotEmpty()) {
+                    { text(pass.sub.layoutString, typography = Typography.BODY_EXTRA_SMALL, color = colorScheme.onSurfaceVariant, maxLines = 1) }
+                } else null,
+                onClick = open,
+            )
+        }
     }
 
     override fun onTileResourcesRequest(requestParams: RequestBuilders.ResourcesRequest): ListenableFuture<ResourceBuilders.Resources> {
@@ -419,10 +576,17 @@ class PassesTile : SimpleTile() {
             val bytes = QrPasses.imageFile(this, pass.id).readBytes()
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-            res.addIdToImageMapping("pass", ResourceBuilders.ImageResource.Builder().setInlineResource(
-                ResourceBuilders.InlineImageResource.Builder().setData(bytes)
-                    .setWidthPx(opts.outWidth).setHeightPx(opts.outHeight)
-                    .setFormat(ResourceBuilders.IMAGE_FORMAT_UNDEFINED).build()).build())
+            res.addIdToImageMapping(
+                "pass",
+                ResourceBuilders.ImageResource.Builder().setInlineResource(
+                    ResourceBuilders.InlineImageResource.Builder()
+                        .setData(bytes)
+                        .setWidthPx(opts.outWidth)
+                        .setHeightPx(opts.outHeight)
+                        .setFormat(ResourceBuilders.IMAGE_FORMAT_UNDEFINED)
+                        .build(),
+                ).build(),
+            )
         }
         val built = res.build()
         return CallbackToFutureAdapter.getFuture { it.set(built); "res" }
