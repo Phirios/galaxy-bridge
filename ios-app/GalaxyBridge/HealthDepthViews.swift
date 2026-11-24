@@ -1,7 +1,8 @@
+import Charts
 import SwiftUI
 import WearLink
 
-// Screens for health depth (Wave C), opened from tiles on the Health tab and rows in Settings.
+// Screens for health depth (Wave C), opened from cards on the Health tab and rows in Settings.
 
 /// Stress (estimate) and heart-rate variability from the watch's beat-to-beat data.
 struct StressHrvView: View {
@@ -10,20 +11,19 @@ struct StressHrvView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(spacing: 6) {
-                    Text(depth.latestHrv?.stress.map(String.init) ?? "–")
-                        .font(.system(size: 64, weight: .heavy, design: .rounded)).foregroundStyle(.white)
-                        .contentTransition(.numericText())
-                    Text("Stress · \(depth.latestHrv?.stressLabel ?? "no reading")")
-                        .font(.headline).foregroundStyle(Theme.accent3)
-                    if let r = depth.latestHrv {
-                        Text("HRV \(Int(r.sdnn.rounded())) ms SDNN\(r.rmssd.map { " · RMSSD \(Int($0.rounded())) ms" } ?? "") · \(r.at.formatted(.relative(presentation: .named)))")
-                            .font(.caption).foregroundStyle(.white.opacity(0.6)).multilineTextAlignment(.center)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 8)
+            VStack(alignment: .leading, spacing: 16) {
+                HealthSummaryCard(
+                    title: "Stress & HRV",
+                    symbol: "brain.head.profile",
+                    color: .purple,
+                    value: depth.latestHrv?.stress.map(String.init) ?? "–",
+                    unit: depth.latestHrv?.stressLabel ?? "no reading",
+                    timestamp: depth.latestHrv.map { $0.at.formatted(.relative(presentation: .named)) },
+                    subtitle: depth.latestHrv.map { r in
+                        "HRV \(Int(r.sdnn.rounded())) ms SDNN" + (r.rmssd.map { " · RMSSD \(Int($0.rounded())) ms" } ?? "")
+                    },
+                    largeValue: true
+                )
 
                 Button {
                     depth.measureHrv()
@@ -31,52 +31,86 @@ struct StressHrvView: View {
                     Label(depth.measuring ? "Measuring on watch…" : "Measure now (1 min)", systemImage: "waveform.path.ecg")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent).tint(Theme.accent3)
+                .buttonStyle(.borderedProminent)
+                .tint(.purple)
+                .controlSize(.large)
                 .disabled(depth.measuring || link.status != .connected)
 
                 if let m = depth.hrvMessage {
-                    Text(m).font(.callout).foregroundStyle(.white.opacity(0.75))
+                    Text(m)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
                 }
 
                 if depth.history.count > 1 {
-                    SectionTitle(text: "Recent readings")
-                    HrvHistoryChart(readings: Array(depth.history.suffix(20)))
-                        .frame(height: 120)
-                        .padding(16)
-                        .card()
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Label("Recent HRV", systemImage: "waveform.path.ecg")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.purple)
+                            Spacer()
+                            Text("Last \(min(depth.history.count, 20)) readings")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        HrvHistoryChart(readings: Array(depth.history.suffix(20)))
+                            .frame(height: 150)
+                    }
+                    .padding(16)
+                    .insetCard()
                 }
 
-                SectionTitle(text: "About this reading")
                 VStack(alignment: .leading, spacing: 8) {
+                    Text("About this reading")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
                     Text("Your watch records the time between heartbeats for a minute. HRV (SDNN) goes to Apple Health as Heart Rate Variability; the stress score (0–100, from RMSSD) is shown here and on the watch only.")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
                     Text("Both are wellness estimates, not medical measurements.")
-                        .foregroundStyle(.white.opacity(0.6))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                     if depth.ibiAttempts > 0 {
-                        Text("Beat-to-beat data received in \(depth.ibiWithData) of \(depth.ibiAttempts) attempts on this watch.")
-                            .foregroundStyle(depth.ibiWithData == 0 ? .orange : .white.opacity(0.6))
+                        Label(
+                            "Beat-to-beat data received in \(depth.ibiWithData) of \(depth.ibiAttempts) attempts on this watch.",
+                            systemImage: depth.ibiWithData == 0 ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
+                        )
+                        .font(.subheadline)
+                        .foregroundStyle(depth.ibiWithData == 0 ? .orange : .secondary)
                         if depth.ibiWithData == 0 {
                             Text("The watch's sensor hasn't sent any beat-to-beat intervals yet, so HRV can't be calculated. This depends on the watch firmware.")
+                                .font(.subheadline)
                                 .foregroundStyle(.orange)
                         }
                     }
                 }
-                .font(.subheadline)
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .card()
+                .insetCard()
 
                 NavigationLink { BackgroundReadingsView() } label: {
-                    Label("Automatic & overnight readings", systemImage: "clock.arrow.circlepath")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(16)
-                        .card()
+                    HStack(spacing: 12) {
+                        SettingsIconBadge(symbol: "clock.arrow.circlepath", color: .purple)
+                        Text("Automatic & overnight readings")
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(16)
+                    .insetCard()
                 }
-                .buttonStyle(PressScale())
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 40)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
-        .background(AuroraBackground())
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Stress & HRV")
         .onAppear { depth.refresh() }
     }
@@ -86,18 +120,17 @@ private struct HrvHistoryChart: View {
     let readings: [HealthDepthStore.HrvReading]
 
     var body: some View {
-        GeometryReader { geo in
-            let top = max(readings.map(\.sdnn).max() ?? 1, 1)
-            let w = geo.size.width / CGFloat(max(readings.count, 1))
-            HStack(alignment: .bottom, spacing: 0) {
-                ForEach(readings) { r in
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Theme.accent3.gradient)
-                        .frame(width: max(w - 4, 2), height: max(4, geo.size.height * CGFloat(r.sdnn / top)))
-                        .frame(width: w)
-                }
-            }
-            .frame(maxHeight: .infinity, alignment: .bottom)
+        Chart(readings) { r in
+            BarMark(
+                x: .value("Time", r.at),
+                y: .value("HRV", r.sdnn)
+            )
+            .foregroundStyle(.purple.gradient)
+            .cornerRadius(4)
+        }
+        .chartYAxisLabel("ms")
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 4))
         }
         .accessibilityLabel("HRV history, \(readings.count) readings")
     }
@@ -147,7 +180,6 @@ struct GoalsRemindersView: View {
                 Section { Text("Changes are sent the next time your watch connects.").foregroundStyle(.secondary) }
             }
         }
-        .auroraScreen()
         .navigationTitle("Goals & reminders")
     }
 
@@ -205,12 +237,11 @@ struct BackgroundReadingsView: View {
                 if !depth.autoSkipped.isEmpty { LabeledContent("Last skipped", value: depth.autoSkipped) }
                 LabeledContent("Sleep estimate", value: depth.asleep ? "Asleep" : "Awake")
                 if depth.watchSensors == false {
-                    Text("Samsung health sensors aren't reachable — set up developer mode under Health → Body sensors.")
+                    Label("Samsung health sensors aren't reachable — set up developer mode under Health → Body sensors.", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                 }
             }
         }
-        .auroraScreen()
         .navigationTitle("Automatic readings")
         .onAppear { depth.refresh() }
     }
@@ -229,71 +260,91 @@ struct IntakeView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 12) {
-                    total("Water", "\(Int(depth.today.waterMl.rounded()))", "ml", "drop.fill", .cyan)
-                    total("Caffeine", "\(Int(depth.today.caffeineMg.rounded()))", "mg", "cup.and.saucer.fill", .brown)
+        Form {
+            Section("Today") {
+                HStack(spacing: 16) {
+                    summaryMetric(title: "Water", symbol: "drop.fill", color: .cyan,
+                                  value: "\(Int(depth.today.waterMl.rounded()))", unit: "ml")
+                    Divider()
+                    summaryMetric(title: "Caffeine", symbol: "cup.and.saucer.fill", color: .brown,
+                                  value: "\(Int(depth.today.caffeineMg.rounded()))", unit: "mg")
                 }
+                .padding(.vertical, 4)
+            }
 
-                SectionTitle(text: "Water")
+            Section("Log water") {
                 HStack(spacing: 10) {
                     ForEach([150.0, 250, 330, 500], id: \.self) { ml in
-                        Button { Task { await depth.logWater(ml); hub.toast = "Logged \(Int(ml)) ml" } } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: "drop.fill").foregroundStyle(.cyan)
-                                Text("\(Int(ml))").font(.headline)
-                                Text("ml").font(.caption2).foregroundStyle(.secondary)
+                        Button {
+                            Task { await depth.logWater(ml); hub.toast = "Logged \(Int(ml)) ml" }
+                        } label: {
+                            VStack(spacing: 2) {
+                                Image(systemName: "drop.fill")
+                                    .foregroundStyle(.cyan)
+                                Text("\(Int(ml))")
+                                    .font(.headline)
+                                    .monospacedDigit()
+                                Text("ml")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
-                            .frame(maxWidth: .infinity).padding(.vertical, 12).card(cornerRadius: 18)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
                         }
-                        .buttonStyle(PressScale())
+                        .buttonStyle(.bordered)
+                        .tint(.cyan)
+                        .accessibilityLabel("Log \(Int(ml)) millilitres of water")
                     }
                 }
-
-                SectionTitle(text: "Caffeine")
-                VStack(spacing: 10) {
-                    ForEach(drinks, id: \.0) { d in
-                        Button { Task { await depth.logCaffeine(d.2); hub.toast = "Logged \(d.0.lowercased()), \(Int(d.2)) mg" } } label: {
-                            HStack {
-                                Image(systemName: d.1).foregroundStyle(.brown).frame(width: 28)
-                                Text(d.0).font(.subheadline.weight(.semibold))
-                                Spacer()
-                                Text("\(Int(d.2)) mg").font(.caption).foregroundStyle(.secondary)
-                            }
-                            .padding(14).card(cornerRadius: 18)
-                        }
-                        .buttonStyle(PressScale())
-                    }
-                }
-
-                SectionTitle(text: "Quick log on the watch")
-                VStack(alignment: .leading, spacing: 10) {
-                    Stepper("Cup: \(depth.config.cupMl) ml", value: $depth.config.cupMl, in: 50...1_000, step: 50)
-                    Stepper("Coffee: \(depth.config.coffeeMg) mg", value: $depth.config.coffeeMg, in: 10...500, step: 5)
-                    Text("Add the Water & caffeine tile on the watch to log with one tap.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .padding(16).card()
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 40)
+
+            Section("Log caffeine") {
+                ForEach(drinks, id: \.0) { d in
+                    Button {
+                        Task { await depth.logCaffeine(d.2); hub.toast = "Logged \(d.0.lowercased()), \(Int(d.2)) mg" }
+                    } label: {
+                        LabeledContent {
+                            Text("\(Int(d.2)) mg")
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        } label: {
+                            Label(d.0, systemImage: d.1)
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                }
+            }
+
+            Section {
+                Stepper("Cup: \(depth.config.cupMl) ml", value: $depth.config.cupMl, in: 50...1_000, step: 50)
+                Stepper("Coffee: \(depth.config.coffeeMg) mg", value: $depth.config.coffeeMg, in: 10...500, step: 5)
+            } header: {
+                Text("Quick log on the watch")
+            } footer: {
+                Text("Add the Water & caffeine tile on the watch to log with one tap.")
+            }
         }
-        .background(AuroraBackground())
         .navigationTitle("Water & caffeine")
         .toast($hub.toast)
     }
 
-    private func total(_ title: String, _ value: String, _ unit: String, _ symbol: String, _ color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: symbol).foregroundStyle(color).frame(width: 30, height: 30).background(color.opacity(0.15), in: Circle())
-            Text("\(title) today").font(.caption).foregroundStyle(.secondary)
+    private func summaryMetric(title: String, symbol: String, color: Color, value: String, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(value).font(.system(.title, design: .rounded).weight(.bold))
-                Text(unit).font(.caption).foregroundStyle(.secondary)
+                Text(value)
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text(unit)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(16).card()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -308,7 +359,7 @@ struct CycleView: View {
     @State private var saving = false
 
     private let flows: [(MenstrualFlow?, String)] = [
-        (nil, "No entry"), (.none, "None"), (.light, "Light"), (.medium, "Medium"), (.heavy, "Heavy"), (.unspecified, "Spotting / unsure"),
+        (nil, "No entry"), (MenstrualFlow.none, "None"), (.light, "Light"), (.medium, "Medium"), (.heavy, "Heavy"), (.unspecified, "Spotting / unsure"),
     ]
 
     var body: some View {
@@ -354,7 +405,6 @@ struct CycleView: View {
                 }
             }
         }
-        .auroraScreen()
         .navigationTitle("Cycle tracking")
         .toast($hub.toast)
     }

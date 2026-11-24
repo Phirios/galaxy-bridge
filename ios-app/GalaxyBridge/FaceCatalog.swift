@@ -299,40 +299,64 @@ struct FaceGalleryView: View {
                 if let d = hub.design, let style = FaceCatalog.styles.first(where: { $0.id == d.style }) {
                     NavigationLink { FaceStyleView(style: style) } label: {
                         HStack(spacing: 14) {
-                            FaceRender(design: d).frame(width: 64, height: 64)
+                            FaceRender(design: d).frame(width: 60, height: 60)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("On your watch").font(.caption).foregroundStyle(Theme.accent2)
-                                Text(d.name).font(.headline).foregroundStyle(.white)
+                                Text("On your watch")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.accentColor)
+                                Text(d.name)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
                             }
                             Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.4))
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                                .accessibilityHidden(true)
                         }
-                        .padding(14).card(cornerRadius: 22)
+                        .padding(14)
+                        .insetCard()
                     }
-                    .buttonStyle(PressScale())
+                    .buttonStyle(.plain)
                     .padding(.horizontal, 16)
                 }
-                SectionTitle(text: "\(styles.count) styles · \(FaceCatalog.all.count) faces").padding(.horizontal, 16)
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 20) {
+
+                Text("\(styles.count) styles · \(FaceCatalog.all.count) faces")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 20)
+
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
                     ForEach(styles) { style in
                         NavigationLink { FaceStyleView(style: style) } label: {
                             VStack(spacing: 8) {
                                 FaceRender(design: style.cover)
-                                    .shadow(color: Color(hex: style.cover.accent).opacity(0.4), radius: 10)
-                                Text(style.title).font(.subheadline.weight(.bold)).foregroundStyle(.white)
-                                Text("\(style.faces.count) colours").font(.caption2).foregroundStyle(.white.opacity(0.55))
+                                    .shadow(color: .black.opacity(0.16), radius: 6, y: 2)
+                                Text(style.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text("\(style.faces.count) colours")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
+                            .padding(12)
+                            .frame(maxWidth: .infinity)
+                            .insetCard()
                         }
-                        .buttonStyle(PressScale())
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 16)
-                Text("All free. Designed for Wear OS Bridge.").font(.caption).foregroundStyle(.white.opacity(0.5))
-                    .frame(maxWidth: .infinity).padding(.bottom, 24)
+
+                Text("All free. Designed for Wear OS Bridge.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 24)
             }
             .padding(.top, 8)
         }
-        .auroraScreen()
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Face gallery")
         .searchable(text: $query, prompt: "Search styles")
         .task { hub.requestDesign() }
@@ -349,28 +373,51 @@ struct FaceStyleView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                Text(style.blurb).font(.subheadline).foregroundStyle(.white.opacity(0.65)).padding(.horizontal, 16)
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3), spacing: 18) {
+                Text(style.blurb)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 14) {
                     ForEach(style.faces) { f in
+                        let isActive = hub.design?.id == f.id
                         Button { selected = f } label: {
                             VStack(spacing: 6) {
                                 FaceRender(design: f)
-                                    .overlay(Circle().strokeBorder(hub.design?.id == f.id ? Theme.accent2 : .white.opacity(0.12),
-                                                                   lineWidth: hub.design?.id == f.id ? 3 : 1))
-                                    .shadow(color: Color(hex: f.accent).opacity(0.35), radius: 8)
+                                    .overlay(
+                                        Circle().strokeBorder(
+                                            isActive ? Color.accentColor : Color.secondary.opacity(0.2),
+                                            lineWidth: isActive ? 3 : 1
+                                        )
+                                    )
+                                    .overlay(alignment: .bottomTrailing) {
+                                        if isActive {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(.white, Color.accentColor)
+                                                .accessibilityHidden(true)
+                                        }
+                                    }
                                 Text(f.name.replacingOccurrences(of: style.title + " ", with: ""))
-                                    .font(.caption2.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
-                                    .lineLimit(1).minimumScaleFactor(0.8)
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                             }
+                            .padding(8)
+                            .frame(maxWidth: .infinity)
+                            .insetCard(cornerRadius: 14)
                         }
-                        .buttonStyle(PressScale())
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(isActive ? .isSelected : [])
                     }
                 }
                 .padding(.horizontal, 16)
             }
             .padding(.vertical, 10)
         }
-        .auroraScreen()
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle(style.title)
         .sheet(item: $selected) { FaceDetailView(design: $0).presentationDetents([.large]) }
         .toast($hub.toast)
@@ -386,29 +433,36 @@ struct FaceDetailView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 22) {
+                VStack(spacing: 20) {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         FaceRender(design: design, date: ctx.date)
                     }
-                    .frame(width: 270, height: 270)
-                    .shadow(color: Color(hex: design.accent).opacity(0.5), radius: 30)
-                    .padding(.top, 20)
+                    .frame(width: 250, height: 250)
+                    .shadow(color: .black.opacity(0.2), radius: 14, y: 6)
+                    .padding(.top, 16)
 
                     VStack(spacing: 4) {
-                        Text(design.name).font(.title2.weight(.bold)).foregroundStyle(.white)
+                        Text(design.name)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.primary)
                         Text(FaceCatalog.styles.first { $0.id == design.style }?.blurb ?? "")
-                            .font(.subheadline).foregroundStyle(.white.opacity(0.6))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
 
                     Button {
                         hub.setDesign(design)
                         dismiss()
                     } label: {
-                        Label(hub.design?.id == design.id && hub.designActive ? "On your watch" : "Set on watch",
-                              systemImage: "applewatch.and.arrow.forward").font(.headline).frame(maxWidth: .infinity)
+                        Label(
+                            hub.design?.id == design.id && hub.designActive ? "On your watch" : "Set on watch",
+                            systemImage: hub.design?.id == design.id && hub.designActive ? "checkmark.circle.fill" : "applewatch.and.arrow.forward"
+                        )
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent).controlSize(.large).tint(Color(hex: design.accent))
-                    .foregroundStyle(Color(hex: design.bg2))
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                     .disabled(link.status != .connected)
 
                     VStack(alignment: .leading, spacing: 10) {
@@ -419,14 +473,16 @@ struct FaceDetailView: View {
                                   systemImage: "hand.tap")
                         }
                     }
-                    .font(.footnote).foregroundStyle(.white.opacity(0.75))
-                    .padding(16).card()
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .insetCard()
                 }
                 .padding(20)
             }
-            .auroraScreen()
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
         }
-        .preferredColorScheme(.dark)
     }
 }

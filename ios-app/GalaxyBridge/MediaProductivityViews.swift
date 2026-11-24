@@ -10,7 +10,7 @@ import Translation
 #endif
 
 // Screens for the media, customisation and productivity features (Wave D). They sit on the
-// existing Watch tab as FeatureTiles and follow the app's look: aurora background, Form or cards.
+// Watch tab's FeatureLauncher and use standard native Forms.
 
 private struct WDNotConnected: View {
     @EnvironmentObject var link: WatchLink
@@ -62,7 +62,6 @@ struct WatchMusicView: View {
                 Label("Pair earbuds in the watch's Settings → Connections → Bluetooth.", systemImage: "airpodspro")
             }
         }
-        .auroraScreen()
         .navigationTitle("Music on watch")
         .fileImporter(isPresented: $picking, allowedContentTypes: [.audio], allowsMultipleSelection: false) { result in
             if case let .success(urls) = result, let url = urls.first { Task { await extras.pushAudio(url) } }
@@ -79,8 +78,8 @@ struct WatchMusicView: View {
 private struct RoutePicker: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView {
         let v = AVRoutePickerView()
-        v.tintColor = .white
-        v.activeTintColor = UIColor(Theme.accent2)
+        v.tintColor = .label
+        v.activeTintColor = .tintColor
         v.prioritizesVideoDevices = false
         return v
     }
@@ -129,7 +128,6 @@ struct IPhoneMediaView: View {
                 Label("Play, pause, next, previous and volume as before.", systemImage: "playpause.fill")
             }
         }
-        .auroraScreen()
         .navigationTitle("iPhone media")
         .onReceive(timer) { _ in refresh() }
         .onAppear { refresh() }
@@ -160,7 +158,6 @@ struct ClickerInfoView: View {
                 Text("The watch acts as a small Bluetooth keyboard with only slide keys (arrows, B, Esc). Works with Keynote, PowerPoint and Google Slides. To use it with a computer, pair the watch with it first in the watch's Bluetooth settings. While it's connected to the iPhone, iOS hides the on-screen keyboard and the camera shutter is paused; tap ■ to stop.")
             }
         }
-        .auroraScreen()
         .navigationTitle("Clicker")
     }
 }
@@ -214,7 +211,6 @@ struct FaceScheduleView: View {
                 Button("Save to watch") { extras.saveFacePlan() }.disabled(link.status != .connected)
             }
         }
-        .auroraScreen()
         .navigationTitle("Face schedule")
         .task { hub.requestFaces(); extras.requestFacePlan() }
         .toast($extras.toast)
@@ -243,7 +239,7 @@ struct TileManagerView: View {
                         Text(t.label)
                         Spacer()
                         switch t.active {
-                        case .some(true): Label("On watch", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.accent2).labelStyle(.titleAndIcon)
+                        case .some(true): Label("On watch", systemImage: "checkmark.circle.fill").foregroundStyle(.green).labelStyle(.titleAndIcon)
                         case .some(false): Text("Not added").foregroundStyle(.secondary)
                         case .none: Text("—").foregroundStyle(.secondary)
                         }
@@ -266,7 +262,6 @@ struct TileManagerView: View {
                 Text("Wear OS doesn't let other apps add, remove or reorder tiles, or reorder the app drawer: on Galaxy watches those editors only talk to Samsung's Galaxy Wearable app on an Android phone. So the iPhone can see which of our tiles are added and change what they show, but the arranging stays on the watch.")
             }
         }
-        .auroraScreen()
         .navigationTitle("Tile manager")
         .task { extras.requestTiles() }
         .refreshable { extras.requestTiles() }
@@ -309,7 +304,6 @@ struct TranslateView: View {
                 }
             }
         }
-        .auroraScreen()
         .navigationTitle("Translate")
         .toast($extras.toast)
     }
@@ -384,7 +378,6 @@ struct WorldClockView: View {
                 }
             }
         }
-        .auroraScreen()
         .navigationTitle("World clock")
         .toolbar { EditButton() }
     }
@@ -411,7 +404,6 @@ struct ChecklistView: View {
                 }
             }
         }
-        .auroraScreen()
         .navigationTitle("Checklist")
         .onAppear { extras.loadReminderLists() }
     }
@@ -461,7 +453,6 @@ struct PassesView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
-        .auroraScreen()
         .navigationTitle("Passes")
         .onAppear { extras.requestPasses() }
         .onChange(of: photo) { _, new in
@@ -492,7 +483,9 @@ struct HomeShortcutsView: View {
                     HStack {
                         VStack(alignment: .leading) { Text(s.name); Text("Shortcut: \(s.shortcut)").font(.caption).foregroundStyle(.secondary) }
                         Spacer()
-                        Button { extras.runScene(s) } label: { Image(systemName: "play.circle.fill") }.buttonStyle(.borderless)
+                        Button { extras.runScene(s) } label: { Image(systemName: "play.circle.fill") }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Run \(s.name)")
                     }
                 }
                 .onDelete { extras.scenes.remove(atOffsets: $0); extras.sendScenes() }
@@ -517,7 +510,6 @@ struct HomeShortcutsView: View {
             }
             .font(.footnote)
         }
-        .auroraScreen()
         .navigationTitle("Home shortcuts")
         .toast($extras.toast)
     }
@@ -532,9 +524,9 @@ struct WidgetsView: View {
         Form {
             Section {
                 HStack {
-                    reading("heart.fill", Theme.heart, extras.snapshot.heartRate.map(String.init) ?? "–", "bpm")
-                    reading("figure.walk", Theme.steps, extras.snapshot.steps.map { $0.formatted() } ?? "–", "steps")
-                    reading("applewatch", Theme.accent2, extras.snapshot.battery.map { "\($0)%" } ?? "–", "battery")
+                    reading("heart.fill", .red, extras.snapshot.heartRate.map(String.init) ?? "–", "bpm")
+                    reading("figure.walk", .green, extras.snapshot.steps.map { $0.formatted() } ?? "–", "steps")
+                    reading("applewatch", .blue, extras.snapshot.battery.map { "\($0)%" } ?? "–", "battery")
                 }
             } header: { Text("Shared with the widget") }
             Section {
@@ -547,17 +539,17 @@ struct WidgetsView: View {
                 Label("Lock Screen: touch and hold the Lock Screen, Customise → Lock Screen, add the Wear OS Bridge widget.", systemImage: "lock.iphone")
             } header: { Text("Widgets") }
         }
-        .auroraScreen()
         .navigationTitle("Widget & Live Activity")
         .toast($extras.toast)
     }
 
     private func reading(_ symbol: String, _ color: Color, _ value: String, _ unit: String) -> some View {
         VStack(spacing: 4) {
-            Image(systemName: symbol).foregroundStyle(color)
-            Text(value).font(.headline)
+            Image(systemName: symbol).foregroundStyle(color).accessibilityHidden(true)
+            Text(value).font(.headline).monospacedDigit()
             Text(unit).font(.caption2).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }

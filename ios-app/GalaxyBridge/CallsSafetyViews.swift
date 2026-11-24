@@ -18,102 +18,123 @@ struct CallsFavouritesView: View {
     private var connected: Bool { link.status == .connected }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                SectionTitle(text: "Favourites")
-                VStack(alignment: .leading, spacing: 12) {
-                    if store.favourites.isEmpty {
-                        Text("Add up to \(CallsSafetyLimits.maxFavourites) people. They appear in Phone on the watch and on the Calls & SOS tile.")
-                            .font(.callout).foregroundStyle(.white.opacity(0.7))
+        Form {
+            Section {
+                if store.favourites.isEmpty {
+                    Text("Add up to \(CallsSafetyLimits.maxFavourites) people. They appear in Phone on the watch and on the Calls & SOS tile.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(Array(store.favourites.enumerated()), id: \.element.id) { i, f in
+                    HStack(spacing: 12) {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(.yellow)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(f.name.isEmpty ? f.number : f.name)
+                                .font(.body)
+                            Text(f.number)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button { store.moveFavourite(f, up: true) } label: { Image(systemName: "chevron.up") }
+                            .disabled(i == 0)
+                            .accessibilityLabel("Move \(f.name.isEmpty ? f.number : f.name) up")
+                        Button(role: .destructive) { store.removeFavourite(f) } label: { Image(systemName: "trash") }
+                            .accessibilityLabel("Remove \(f.name.isEmpty ? f.number : f.name)")
                     }
-                    ForEach(Array(store.favourites.enumerated()), id: \.element.id) { i, f in
-                        HStack(spacing: 12) {
-                            Image(systemName: "star.fill").foregroundStyle(.yellow)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(f.name.isEmpty ? f.number : f.name).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                                Text(f.number).font(.caption).foregroundStyle(.white.opacity(0.6))
+                    .buttonStyle(.borderless)
+                }
+                Button {
+                    ContactPhonePicker.present { name, number in store.addFavourite(name: name, number: number) }
+                } label: {
+                    Label("Add from Contacts", systemImage: "person.crop.circle.badge.plus")
+                }
+                .disabled(store.favourites.count >= CallsSafetyLimits.maxFavourites)
+            } header: {
+                Text("Favourites")
+            }
+
+            Section {
+                if store.callLog.isEmpty {
+                    Text(connected ? "No calls yet. Calls the watch places or sees appear here." : "Connect your watch to see its recent calls.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(store.callLog) { e in
+                    HStack(spacing: 12) {
+                        Image(systemName: symbol(e.direction))
+                            .foregroundStyle(e.direction == .missed ? .red : .green)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(e.name.isEmpty ? e.number : e.name)
+                                .font(.body)
+                                .foregroundStyle(e.direction == .missed ? .red : .primary)
+                            HStack(spacing: 4) {
+                                Text(directionLabel(e.direction))
+                                Text("·")
+                                Text(e.at, style: .relative)
                             }
-                            Spacer()
-                            Button { store.moveFavourite(f, up: true) } label: { Image(systemName: "chevron.up") }
-                                .disabled(i == 0).accessibilityLabel("Move up")
-                            Button(role: .destructive) { store.removeFavourite(f) } label: { Image(systemName: "trash") }
-                                .accessibilityLabel("Remove \(f.name)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if !e.number.isEmpty {
+                            Button { hub.call("dial", number: e.number) } label: {
+                                Image(systemName: "phone.arrow.up.right.fill")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.green)
+                            .disabled(!connected)
+                            .accessibilityLabel("Call back \(e.name.isEmpty ? e.number : e.name) from the watch")
+                        }
+                    }
+                }
+            } header: {
+                Text("Recent calls on the watch")
+            }
+
+            Section {
+                ForEach(store.quickReplies, id: \.self) { r in
+                    HStack {
+                        Text(r)
+                        Spacer()
+                        Button(role: .destructive) { store.setQuickReplies(store.quickReplies.filter { $0 != r }) } label: {
+                            Image(systemName: "minus.circle")
                         }
                         .buttonStyle(.borderless)
+                        .accessibilityLabel("Remove \(r)")
                     }
-                    Button {
-                        ContactPhonePicker.present { name, number in store.addFavourite(name: name, number: number) }
-                    } label: {
-                        Label("Add from Contacts", systemImage: "person.crop.circle.badge.plus").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent).tint(Theme.accent)
-                    .disabled(store.favourites.count >= CallsSafetyLimits.maxFavourites)
                 }
-                .padding(16).card(cornerRadius: 22)
-
-                HStack {
-                    SectionTitle(text: "Recent calls on the watch")
-                    Spacer()
-                    Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
-                        .disabled(!connected).accessibilityLabel("Refresh")
-                }
-                VStack(alignment: .leading, spacing: 12) {
-                    if store.callLog.isEmpty {
-                        Text(connected ? "No calls yet. Calls the watch places or sees appear here." : "Connect your watch to see its recent calls.")
-                            .font(.callout).foregroundStyle(.white.opacity(0.7))
-                    }
-                    ForEach(store.callLog) { e in
-                        HStack(spacing: 12) {
-                            Image(systemName: symbol(e.direction))
-                                .foregroundStyle(e.direction == .missed ? .red : .green)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(e.name.isEmpty ? e.number : e.name).font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(e.direction == .missed ? .red : .white)
-                                Text(e.at, style: .relative).font(.caption).foregroundStyle(.white.opacity(0.6))
-                            }
-                            Spacer()
-                            if !e.number.isEmpty {
-                                Button { hub.call("dial", number: e.number) } label: { Image(systemName: "phone.arrow.up.right.fill") }
-                                    .buttonStyle(.bordered).tint(.green).disabled(!connected)
-                                    .accessibilityLabel("Call back from the watch")
-                            }
+                if store.quickReplies.count < CallsSafetyLimits.maxQuickReplies {
+                    HStack {
+                        TextField("New reply", text: $newReply)
+                        Button("Add") {
+                            store.setQuickReplies(store.quickReplies + [newReply]); newReply = ""
                         }
+                        .disabled(newReply.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 }
-                .padding(16).card(cornerRadius: 22)
-
-                SectionTitle(text: "Quick replies")
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Tap one on the watch: Siri starts on your iPhone over the hands-free link and you say the reply; iOS composes and sends it. The iPhone also gets a notification that opens Messages with the text filled in. Nothing is ever sent without you.")
-                        .font(.callout).foregroundStyle(.white.opacity(0.7))
-                    ForEach(store.quickReplies, id: \.self) { r in
-                        HStack {
-                            Text(r).foregroundStyle(.white)
-                            Spacer()
-                            Button(role: .destructive) { store.setQuickReplies(store.quickReplies.filter { $0 != r }) } label: { Image(systemName: "minus.circle") }
-                                .buttonStyle(.borderless).accessibilityLabel("Remove \(r)")
-                        }
-                    }
-                    if store.quickReplies.count < CallsSafetyLimits.maxQuickReplies {
-                        HStack {
-                            TextField("New reply", text: $newReply).textFieldStyle(.roundedBorder)
-                            Button("Add") {
-                                store.setQuickReplies(store.quickReplies + [newReply]); newReply = ""
-                            }
-                            .disabled(newReply.trimmingCharacters(in: .whitespaces).isEmpty)
-                        }
-                    }
-                }
-                .padding(16).card(cornerRadius: 22)
-
-                Text("Calls are placed by the watch over its hands-free (classic Bluetooth) pairing with this iPhone, which is set up in the watch's Bluetooth settings.")
-                    .font(.caption).foregroundStyle(.white.opacity(0.55))
+            } header: {
+                Text("Quick replies")
+            } footer: {
+                Text("Tap one on the watch: Siri starts on your iPhone over the hands-free link and you say the reply; iOS composes and sends it. The iPhone also gets a notification that opens Messages with the text filled in. Nothing is ever sent without you.")
             }
-            .padding(16)
+
+            Section {
+                Text("Calls are placed by the watch over its hands-free (classic Bluetooth) pairing with this iPhone, which is set up in the watch's Bluetooth settings.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .auroraScreen()
         .navigationTitle("Favourites & recents")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                    .disabled(!connected)
+                    .accessibilityLabel("Refresh recent calls")
+            }
+        }
         .onAppear { store.attach(hub); store.refresh() }
         .toast($hub.toast)
     }
@@ -123,6 +144,14 @@ struct CallsFavouritesView: View {
         case .incoming: "phone.arrow.down.left.fill"
         case .outgoing: "phone.arrow.up.right.fill"
         case .missed: "phone.down.fill"
+        }
+    }
+
+    private func directionLabel(_ d: CallLogEntry.Direction) -> String {
+        switch d {
+        case .incoming: "Incoming"
+        case .outgoing: "Outgoing"
+        case .missed: "Missed"
         }
     }
 }
@@ -141,96 +170,123 @@ struct SafetyView: View {
     private var hasContact: Bool { store.config.hasContact }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+        Form {
+            if let a = store.lastAlert, a.stage != .cancelled, Date().timeIntervalSince(a.at) < 3600 {
+                alertSection(a)
+            }
+
+            Section {
+                TextField("Name", text: $name)
+                TextField("Phone number", text: $number)
+                    .keyboardType(.phonePad)
+                if !number.isEmpty, EmergencyNumbers.isPublicEmergency(number) {
+                    Label("Choose a person, not an emergency service. Wear OS Bridge never calls emergency numbers automatically.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                }
+                Button {
+                    ContactPhonePicker.present { n, p in name = n; number = p; save() }
+                } label: {
+                    Label("Choose from Contacts", systemImage: "person.crop.circle")
+                }
+                Button { save() } label: {
+                    Label("Save contact", systemImage: "checkmark")
+                }
+                .disabled(!EmergencyNumbers.isAllowedForAutoCall(number) ||
+                          (name == store.config.contactName && number == store.config.contactNumber))
+                if hasContact {
+                    Label("\(store.config.contactName.isEmpty ? store.config.contactNumber : store.config.contactName) will be called", systemImage: "checkmark.circle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.green)
+                }
+            } header: {
+                Text("Emergency contact")
+            } footer: {
                 Text("If you fall, press SOS or stop moving, your watch counts down so you can cancel, then calls the person you choose here through your iPhone. It never calls emergency services by itself.")
-                    .font(.callout).foregroundStyle(.white.opacity(0.75))
+            }
 
-                if let a = store.lastAlert, a.stage != .cancelled, Date().timeIntervalSince(a.at) < 3600 { alertCard(a) }
-
-                SectionTitle(text: "Emergency contact")
-                contactCard
-
-                SectionTitle(text: "On the watch")
-                VStack(alignment: .leading, spacing: 14) {
-                    Toggle(isOn: $store.config.sos) {
-                        Label("Emergency SOS", systemImage: "sos")
-                    }
-                    Text("Hold the SOS button in Phone on the watch, tap SOS on the Calls & SOS tile, or open the SOS app (you can map it to a double-press of the Home key in the watch's settings).")
-                        .font(.caption).foregroundStyle(.white.opacity(0.6))
-                    Divider().overlay(.white.opacity(0.1))
-                    Toggle(isOn: $store.config.fallDetection) {
-                        Label("Fall detection", systemImage: "figure.fall")
-                    }
-                    Text("Uses the watch's motion sensor: a hard impact followed by stillness. It can miss falls and can be set off by other knocks, which is why there is always a countdown. Off by default.")
-                        .font(.caption).foregroundStyle(.white.opacity(0.6))
-                    Divider().overlay(.white.opacity(0.1))
-                    Toggle(isOn: $store.config.checkIn) {
-                        Label("No-movement check-in", systemImage: "figure.stand")
-                    }
-                    if store.config.checkIn {
-                        Stepper("Ask after \(store.config.checkInHours) h without moving", value: $store.config.checkInHours,
-                                in: CallsSafetyLimits.checkInHoursRange)
-                    }
-                    Text("Skipped while the watch is charging or off your wrist.").font(.caption).foregroundStyle(.white.opacity(0.6))
-                    Divider().overlay(.white.opacity(0.1))
-                    Stepper("Countdown: \(store.config.countdown) s", value: $store.config.countdown,
-                            in: CallsSafetyLimits.countdownRange, step: 5)
+            Section {
+                Toggle(isOn: $store.config.sos) {
+                    Label("Emergency SOS", systemImage: "sos")
                 }
-                .disabled(!hasContact)
-                .padding(16).card(cornerRadius: 22)
-                .opacity(hasContact ? 1 : 0.55)
-
-                SectionTitle(text: "Heart-rate alerts")
-                VStack(alignment: .leading, spacing: 14) {
-                    Toggle(isOn: $store.config.hrAlerts) { Label("Alert me", systemImage: "heart.text.square.fill") }
-                    if store.config.hrAlerts {
-                        Stepper("Above \(store.config.hrHigh) bpm", value: $store.config.hrHigh, in: CallsSafetyLimits.hrHighRange, step: 5)
-                        Stepper("Below \(store.config.hrLow) bpm", value: $store.config.hrLow, in: CallsSafetyLimits.hrLowRange, step: 5)
-                    }
-                    Text("The watch checks your heart rate every 10 minutes and alerts on both the watch and this iPhone when two checks in a row are outside your limits. Not a medical device; it doesn't diagnose anything.")
-                        .font(.caption).foregroundStyle(.white.opacity(0.6))
-                    if let h = store.lastHr {
-                        Label("Last alert: \(h.bpm) bpm, \(h.at.formatted(date: .omitted, time: .shortened))", systemImage: "bell.fill")
-                            .font(.caption).foregroundStyle(Theme.heart)
-                    }
+                Toggle(isOn: $store.config.fallDetection) {
+                    Label("Fall detection", systemImage: "figure.fall")
                 }
-                .padding(16).card(cornerRadius: 22)
+                Toggle(isOn: $store.config.checkIn) {
+                    Label("No-movement check-in", systemImage: "figure.stand")
+                }
+                if store.config.checkIn {
+                    Stepper("Ask after \(store.config.checkInHours) h without moving", value: $store.config.checkInHours,
+                            in: CallsSafetyLimits.checkInHoursRange)
+                }
+                Stepper("Countdown: \(store.config.countdown) s", value: $store.config.countdown,
+                        in: CallsSafetyLimits.countdownRange, step: 5)
+            } header: {
+                Text("On the watch")
+            } footer: {
+                Text("Hold the SOS button in Phone on the watch, tap SOS on the Calls & SOS tile, or open the SOS app. Fall detection uses the watch's motion sensor (hard impact followed by stillness) and can miss falls or trigger on other knocks, which is why there is always a countdown. No-movement check-in is skipped while charging or off your wrist.")
+            }
+            .disabled(!hasContact)
 
-                SectionTitle(text: "Find")
-                HStack(spacing: 12) {
-                    Button { store.findWatchLoud(!store.watchRingingLoud) } label: {
-                        Label(store.watchRingingLoud ? "Stop" : "Find watch (loud)", systemImage: "speaker.wave.3.fill").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent).tint(.orange).disabled(!connected)
-                    if store.phoneRingingLoud {
-                        Button { store.stopLoudRing() } label: { Label("Stop iPhone", systemImage: "speaker.slash.fill").frame(maxWidth: .infinity) }
-                            .buttonStyle(.bordered).tint(.white)
+            Section {
+                Toggle(isOn: $store.config.hrAlerts) {
+                    Label("Alert me", systemImage: "heart.text.square.fill")
+                }
+                if store.config.hrAlerts {
+                    Stepper("Above \(store.config.hrHigh) bpm", value: $store.config.hrHigh, in: CallsSafetyLimits.hrHighRange, step: 5)
+                    Stepper("Below \(store.config.hrLow) bpm", value: $store.config.hrLow, in: CallsSafetyLimits.hrLowRange, step: 5)
+                }
+                if let h = store.lastHr {
+                    Label("Last alert: \(h.bpm) bpm, \(h.at.formatted(date: .omitted, time: .shortened))", systemImage: "bell.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            } header: {
+                Text("Heart-rate alerts")
+            } footer: {
+                Text("The watch checks your heart rate every 10 minutes and alerts on both the watch and this iPhone when two checks in a row are outside your limits. Not a medical device; it doesn't diagnose anything.")
+            }
+
+            Section {
+                Button { store.findWatchLoud(!store.watchRingingLoud) } label: {
+                    Label(store.watchRingingLoud ? "Stop ringing watch" : "Find watch (loud)", systemImage: "speaker.wave.3.fill")
+                }
+                .tint(.orange)
+                .disabled(!connected)
+                if store.phoneRingingLoud {
+                    Button(role: .destructive) { store.stopLoudRing() } label: {
+                        Label("Stop iPhone alarm", systemImage: "speaker.slash.fill")
                     }
                 }
-                .padding(16).card(cornerRadius: 22)
+            } header: {
+                Text("Find")
+            } footer: {
                 Text("The watch's alarm gets louder and its vibration stronger until you stop it. \"Find iPhone (loud)\" on the watch does the same here while this app is open.")
-                    .font(.caption).foregroundStyle(.white.opacity(0.55))
+            }
 
-                if let s = store.watchState {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label(s.hasContact ? "Watch has your contact" : "Watch has no contact yet", systemImage: s.hasContact ? "checkmark.circle.fill" : "exclamationmark.circle")
+            if store.watchState != nil || !connected {
+                Section("Status") {
+                    if let s = store.watchState {
+                        Label(s.hasContact ? "Watch has your contact" : "Watch has no contact yet",
+                              systemImage: s.hasContact ? "checkmark.circle.fill" : "exclamationmark.circle")
+                            .foregroundStyle(s.hasContact ? .green : .orange)
                         if store.config.fallDetection {
-                            Label(s.fallRunning ? "Fall detection running" : "Fall detection not running", systemImage: s.fallRunning ? "checkmark.circle.fill" : "exclamationmark.circle")
+                            Label(s.fallRunning ? "Fall detection running" : "Fall detection not running",
+                                  systemImage: s.fallRunning ? "checkmark.circle.fill" : "exclamationmark.circle")
+                                .foregroundStyle(s.fallRunning ? .green : .orange)
                         }
                         if store.config.hrAlerts, !s.hrSensor {
                             Label("No heart-rate sensor available to the app", systemImage: "exclamationmark.circle")
+                                .foregroundStyle(.orange)
                         }
                     }
-                    .font(.caption).foregroundStyle(.white.opacity(0.7))
-                }
-                if !connected {
-                    Label("Connect your watch to send these settings.", systemImage: "applewatch.slash").font(.caption).foregroundStyle(.orange)
+                    if !connected {
+                        Label("Connect your watch to send these settings.", systemImage: "applewatch.slash")
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
-            .padding(16)
         }
-        .auroraScreen()
         .navigationTitle("Safety")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -241,67 +297,46 @@ struct SafetyView: View {
         }
     }
 
-    private var contactCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            TextField("Name", text: $name).textFieldStyle(.roundedBorder)
-            TextField("Phone number", text: $number).keyboardType(.phonePad).textFieldStyle(.roundedBorder)
-            if !number.isEmpty, EmergencyNumbers.isPublicEmergency(number) {
-                Label("Choose a person, not an emergency service. Wear OS Bridge never calls emergency numbers automatically.", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption).foregroundStyle(.orange)
-            }
-            HStack(spacing: 12) {
-                Button {
-                    ContactPhonePicker.present { n, p in name = n; number = p; save() }
-                } label: { Label("Contacts", systemImage: "person.crop.circle").frame(maxWidth: .infinity) }
-                    .buttonStyle(.bordered).tint(.white)
-                Button { save() } label: { Label("Save", systemImage: "checkmark").frame(maxWidth: .infinity) }
-                    .buttonStyle(.borderedProminent).tint(Theme.accent)
-                    .disabled(!EmergencyNumbers.isAllowedForAutoCall(number) ||
-                              (name == store.config.contactName && number == store.config.contactNumber))
-            }
-            if hasContact {
-                Label("\(store.config.contactName.isEmpty ? store.config.contactNumber : store.config.contactName) will be called", systemImage: "checkmark.circle.fill")
-                    .font(.caption).foregroundStyle(.green)
-            }
-        }
-        .padding(16).card(cornerRadius: 22)
-    }
-
     private func save() {
         guard EmergencyNumbers.isAllowedForAutoCall(number) else { return }
         store.config.contactName = name.trimmingCharacters(in: .whitespaces)
         store.config.contactNumber = number.trimmingCharacters(in: .whitespaces)
     }
 
-    private func alertCard(_ a: SosAlert) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+    @ViewBuilder
+    private func alertSection(_ a: SosAlert) -> some View {
+        Section {
             Label("\(CallsSafetyStore.kindTitle(a.kind)) from your watch", systemImage: "exclamationmark.triangle.fill")
-                .font(.headline).foregroundStyle(.red)
-            Text(a.at.formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.white.opacity(0.6))
+                .font(.headline)
+                .foregroundStyle(.red)
+            LabeledContent("Time", value: a.at.formatted(date: .omitted, time: .shortened))
             if let lat = a.latitude, let lon = a.longitude {
                 let c = CLLocationCoordinate2D(latitude: lat, longitude: lon)
                 Map(initialPosition: .region(MKCoordinateRegion(center: c, latitudinalMeters: 600, longitudinalMeters: 600))) {
                     Marker("Watch", systemImage: "applewatch", coordinate: c).tint(.red)
                 }
-                .frame(height: 180).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                HStack(spacing: 12) {
-                    Button {
-                        if let u = store.sosTextURL(a) { UIApplication.shared.open(u) }
-                    } label: { Label("Text location", systemImage: "message.fill").frame(maxWidth: .infinity) }
-                        .buttonStyle(.borderedProminent).tint(.green)
-                    if let m = a.mapsURL {
-                        ShareLink(item: m, message: Text(store.sosMessage(a))) {
-                            Label("Share", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered).tint(.white)
+                .frame(height: 180)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Button {
+                    if let u = store.sosTextURL(a) { UIApplication.shared.open(u) }
+                } label: {
+                    Label("Text location", systemImage: "message.fill")
+                }
+                .tint(.green)
+                if let m = a.mapsURL {
+                    ShareLink(item: m, message: Text(store.sosMessage(a))) {
+                        Label("Share location", systemImage: "square.and.arrow.up")
                     }
                 }
-                Text("Messages opens with the text filled in; you tap Send.").font(.caption).foregroundStyle(.white.opacity(0.6))
             } else {
-                Text("No location from the watch yet.").font(.callout).foregroundStyle(.white.opacity(0.7))
+                Text("No location from the watch yet.")
+                    .foregroundStyle(.secondary)
+            }
+        } footer: {
+            if a.latitude != nil, a.longitude != nil {
+                Text("Messages opens with the text filled in; you tap Send.")
             }
         }
-        .padding(16).card(cornerRadius: 22)
     }
 }
 

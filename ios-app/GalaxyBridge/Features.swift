@@ -1,3 +1,4 @@
+import Charts
 import Contacts
 import EventKit
 import Foundation
@@ -492,44 +493,8 @@ final class FeatureHub: ObservableObject {
 
 // MARK: - Screens
 
-/// One feature tile that opens a screen. Grouped into grids on the Watch and Health tabs, next to
-/// the features they belong with.
-struct FeatureTile: Identifiable {
-    let title: String, sub: String, symbol: String, color: Color
-    let dest: AnyView
-    var id: String { title }
-}
-
-/// Two-column grid of feature tiles.
-struct FeatureTileGrid: View {
-    let items: [FeatureTile]
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-            ForEach(items) { item in
-                NavigationLink { item.dest } label: { tile(item) }.buttonStyle(PressScale())
-            }
-        }
-    }
-
-    private func tile(_ i: FeatureTile) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: i.symbol).font(.system(size: 18, weight: .semibold)).foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background(i.color.gradient, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .shadow(color: i.color.opacity(0.5), radius: 8, y: 3)
-            Spacer(minLength: 0)
-            Text(i.title).font(.subheadline.weight(.bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.85)
-            Text(i.sub).font(.caption).foregroundStyle(.white.opacity(0.6)).lineLimit(1).minimumScaleFactor(0.85)
-        }
-        .frame(maxWidth: .infinity, minHeight: 118, alignment: .leading)
-        .padding(14)
-        .card(cornerRadius: 22)
-    }
-}
-
 /// Every companion feature on one compact panel: pick a category, then a 4-across icon grid.
-/// Keeps the Watch tab to roughly one screen instead of a long run of tile sections.
+/// Keeps the Watch tab to roughly one screen instead of a long run of sections.
 struct FeatureLauncher: View {
     @AppStorage("launcher.category") private var category = 0
 
@@ -572,7 +537,7 @@ struct FeatureLauncher: View {
             Item(title: "World clock", symbol: "globe", color: .teal, dest: AnyView(WorldClockView())),
             Item(title: "Checklist", symbol: "checklist.checked", color: .green, dest: AnyView(ChecklistView())),
             Item(title: "Passes", symbol: "qrcode", color: .indigo, dest: AnyView(PassesView())),
-            Item(title: "Home", symbol: "house.fill", color: .yellow, dest: AnyView(HomeShortcutsView())),
+            Item(title: "Home", symbol: "house.fill", color: .orange, dest: AnyView(HomeShortcutsView())),
         ]
         }
     }
@@ -586,23 +551,29 @@ struct FeatureLauncher: View {
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 14) {
                 ForEach(items) { item in
-                    NavigationLink { item.dest } label: { icon(item) }.buttonStyle(PressScale())
+                    NavigationLink { item.dest } label: { icon(item) }
+                        .buttonStyle(.plain)
                 }
             }
             .animation(.snappy, value: category)
         }
         .padding(14)
-        .card(cornerRadius: 22)
+        .insetCard()
     }
 
     private func icon(_ i: Item) -> some View {
         VStack(spacing: 6) {
-            Image(systemName: i.symbol).font(.system(size: 19, weight: .semibold)).foregroundStyle(.white)
-                .frame(width: 50, height: 50)
-                .background(i.color.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .shadow(color: i.color.opacity(0.45), radius: 6, y: 3)
-            Text(i.title).font(.caption2.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
-                .lineLimit(1).minimumScaleFactor(0.75)
+            Image(systemName: i.symbol)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 48, height: 48)
+                .background(i.color, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .accessibilityHidden(true)
+            Text(i.title)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .frame(maxWidth: .infinity)
     }
@@ -627,170 +598,179 @@ struct BodySensorsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                SectionTitle(text: "Blood oxygen & skin temperature")
-
+        Form {
+            Section {
                 Text(hub.sensorsAvailable
                      ? "Your watch can read SpO₂ and skin temperature. Readings are written to Apple Health."
                      : "Checking whether your watch's Samsung health sensors are reachable…")
-                    .font(.callout).foregroundStyle(.white.opacity(0.75))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
 
-                VStack(alignment: .leading, spacing: 14) {
-                    step(1, "Turn on Developer mode",
-                         "Opens Samsung Health on the watch. Enable Developer mode so other apps may read the sensors.")
-                    Button { hub.openSensorSettings() } label: {
-                        Label("Open Samsung Health on watch", systemImage: "arrow.up.forward.app.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent).tint(.blue)
-                    .disabled(link.status != .connected)
-
-                    Divider().overlay(.white.opacity(0.1))
-
-                    step(2, "Measure now", "Takes an on-demand reading on the watch (about 30 seconds). Keep the watch snug and still.")
-                    Button { hub.measureSensors(["spo2", "skintemp"]) } label: {
-                        HStack {
-                            if hub.measuringSensors { ProgressView().tint(.white) }
-                            Text(hub.measuringSensors ? "Measuring on watch…" : "Measure SpO₂ & skin temp")
-                        }.frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent).tint(.red)
-                    .disabled(link.status != .connected || hub.measuringSensors)
+                Button { hub.openSensorSettings() } label: {
+                    Label("1. Open Samsung Health on watch", systemImage: "arrow.up.forward.app.fill")
                 }
-                .padding(16).card(cornerRadius: 22)
+                .disabled(link.status != .connected)
 
-                // ECG — shown in-app; Apple Health doesn't accept third-party ECG.
-                VStack(alignment: .leading, spacing: 14) {
-                    SectionTitle(text: "ECG")
-                    Text("Records a single-lead ECG and shows the trace here. Not a medical device — don't use it to diagnose anything.")
-                        .font(.caption).foregroundStyle(.white.opacity(0.6))
-                    if let ecg = hub.ecg {
+                Button { hub.measureSensors(["spo2", "skintemp"]) } label: {
+                    HStack {
+                        Label(hub.measuringSensors ? "Measuring on watch…" : "2. Measure SpO₂ & skin temp",
+                              systemImage: "lungs.fill")
+                        Spacer()
+                        if hub.measuringSensors { ProgressView() }
+                    }
+                }
+                .tint(.red)
+                .disabled(link.status != .connected || hub.measuringSensors)
+            } header: {
+                Text("Blood oxygen & skin temperature")
+            } footer: {
+                Text("Enable Developer mode in Samsung Health on the watch so other apps may read the sensors. Keep the watch snug and still for about 30 seconds during an on-demand reading.")
+            }
+
+            Section {
+                if let ecg = hub.ecg {
+                    VStack(alignment: .leading, spacing: 6) {
                         EcgTraceView(strip: ecg)
-                            .frame(height: 120).frame(maxWidth: .infinity)
-                            .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
+                            .frame(height: 140)
                         Text(String(format: "%.0f s · %d Hz · recorded %@", ecg.durationSec, ecg.hz,
                                     ecg.at.formatted(date: .omitted, time: .shortened)))
-                            .font(.caption2).foregroundStyle(.white.opacity(0.5))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
-                    Button { hub.measureEcg() } label: {
-                        HStack {
-                            if hub.measuringEcg { ProgressView().tint(.white) }
-                            Text(hub.measuringEcg ? "Recording on watch…" : "Record ECG")
-                        }.frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent).tint(.pink)
-                    .disabled(link.status != .connected || hub.measuringEcg)
+                    .padding(.vertical, 4)
                 }
-                .padding(16).card(cornerRadius: 22)
-
-                // Body profile — height/weight/sex/age make the BIA reading accurate.
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionTitle(text: "Body profile")
-                    Text("A body-composition reading needs your height, weight, sex and age. Load them from Apple Health or set them here, then save to the watch.")
-                        .font(.caption).foregroundStyle(.white.opacity(0.6))
-                    Stepper("Height: \(Int(heightCm)) cm", value: $heightCm, in: 100...230, step: 1).foregroundStyle(.white)
-                    Stepper("Weight: \(Int(weightKg)) kg", value: $weightKg, in: 30...250, step: 1).foregroundStyle(.white)
-                    Stepper("Age: \(age)", value: $age, in: 10...120).foregroundStyle(.white)
-                    Picker("Sex", selection: $isMale) { Text("Male").tag(true); Text("Female").tag(false) }
-                        .pickerStyle(.segmented)
-                    Button { Task { if let p = await hub.sendBiaProfileFromHealth() { prefill(p) } } } label: {
-                        Label("Load from Apple Health", systemImage: "heart.text.square").frame(maxWidth: .infinity)
-                    }.buttonStyle(.bordered).tint(.white)
-                    Button {
-                        hub.setBiaProfile(heightCm: heightCm, weightKg: weightKg, gender: isMale ? 1 : 0, age: age)
-                    } label: {
-                        Label("Save profile to watch", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
+                Button { hub.measureEcg() } label: {
+                    HStack {
+                        Label(hub.measuringEcg ? "Recording on watch…" : "Record ECG", systemImage: "waveform.path.ecg")
+                        Spacer()
+                        if hub.measuringEcg { ProgressView() }
                     }
-                    .buttonStyle(.borderedProminent).tint(.indigo)
-                    .disabled(link.status != .connected)
                 }
-                .padding(16).card(cornerRadius: 22)
-
-                // Body composition (BIA) — fat % and lean mass go to Apple Health; rest shown here.
-                VStack(alignment: .leading, spacing: 14) {
-                    SectionTitle(text: "Body composition")
-                    Text("Bioimpedance reading. Body-fat % and lean mass are saved to Apple Health; water, muscle and BMR are shown here.")
-                        .font(.caption).foregroundStyle(.white.opacity(0.6))
-                    if let bc = hub.bodyComposition {
-                        let rows: [(String, String)] = [
-                            ("Body fat", bc.fatPct.map { String(format: "%.1f%%", $0) } ?? "—"),
-                            ("Lean mass", bc.leanKg.map { String(format: "%.1f kg", $0) } ?? "—"),
-                            ("Skeletal muscle", bc.muscleKg.map { String(format: "%.1f kg", $0) } ?? "—"),
-                            ("Body water", bc.waterPct.map { String(format: "%.1f%%", $0) } ?? "—"),
-                            ("BMR", bc.bmr.map { String(format: "%.0f kcal", $0) } ?? "—"),
-                        ]
-                        VStack(spacing: 8) {
-                            ForEach(rows, id: \.0) { row in
-                                HStack {
-                                    Text(row.0).font(.subheadline).foregroundStyle(.white.opacity(0.75))
-                                    Spacer()
-                                    Text(row.1).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                                }
-                            }
-                        }
-                    }
-                    Button { hub.measureBia() } label: {
-                        HStack {
-                            if hub.measuringBia { ProgressView().tint(.white) }
-                            Text(hub.measuringBia ? "Measuring on watch…" : "Measure body composition")
-                        }.frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent).tint(.teal)
-                    .disabled(link.status != .connected || hub.measuringBia)
-                }
-                .padding(16).card(cornerRadius: 22)
-
-                Text("Heart rate, steps, energy, distance and floors sync automatically. Sleep is estimated on the watch from heart rate and movement and written to Apple Health.")
-                    .font(.caption).foregroundStyle(.white.opacity(0.55))
+                .tint(.pink)
+                .disabled(link.status != .connected || hub.measuringEcg)
+            } header: {
+                Text("ECG")
+            } footer: {
+                Text("Records a single-lead ECG and shows the trace here. Not a medical device — don't use it to diagnose anything.")
             }
-            .padding(16)
+
+            Section {
+                Stepper("Height: \(Int(heightCm)) cm", value: $heightCm, in: 100...230, step: 1)
+                Stepper("Weight: \(Int(weightKg)) kg", value: $weightKg, in: 30...250, step: 1)
+                Stepper("Age: \(age)", value: $age, in: 10...120)
+                Picker("Sex", selection: $isMale) { Text("Male").tag(true); Text("Female").tag(false) }
+                Button { Task { if let p = await hub.sendBiaProfileFromHealth() { prefill(p) } } } label: {
+                    Label("Load from Apple Health", systemImage: "heart.text.square")
+                }
+                Button {
+                    hub.setBiaProfile(heightCm: heightCm, weightKg: weightKg, gender: isMale ? 1 : 0, age: age)
+                } label: {
+                    Label("Save profile to watch", systemImage: "square.and.arrow.up")
+                }
+                .disabled(link.status != .connected)
+            } header: {
+                Text("Body profile")
+            } footer: {
+                Text("A body-composition reading needs your height, weight, sex and age. Load them from Apple Health or set them here, then save to the watch.")
+            }
+
+            Section {
+                if let bc = hub.bodyComposition {
+                    LabeledContent("Body fat", value: bc.fatPct.map { String(format: "%.1f%%", $0) } ?? "—")
+                    LabeledContent("Lean mass", value: bc.leanKg.map { String(format: "%.1f kg", $0) } ?? "—")
+                    LabeledContent("Skeletal muscle", value: bc.muscleKg.map { String(format: "%.1f kg", $0) } ?? "—")
+                    LabeledContent("Body water", value: bc.waterPct.map { String(format: "%.1f%%", $0) } ?? "—")
+                    LabeledContent("BMR", value: bc.bmr.map { String(format: "%.0f kcal", $0) } ?? "—")
+                }
+                Button { hub.measureBia() } label: {
+                    HStack {
+                        Label(hub.measuringBia ? "Measuring on watch…" : "Measure body composition",
+                              systemImage: "figure.arms.open")
+                        Spacer()
+                        if hub.measuringBia { ProgressView() }
+                    }
+                }
+                .tint(.teal)
+                .disabled(link.status != .connected || hub.measuringBia)
+            } header: {
+                Text("Body composition")
+            } footer: {
+                Text("Bioimpedance reading. Body-fat % and lean mass are saved to Apple Health; water, muscle and BMR are shown here. Heart rate, steps, energy, distance and floors sync automatically.")
+            }
         }
-        .auroraScreen()
         .navigationTitle("Body sensors")
         .navigationBarTitleDisplayMode(.inline)
         .toast($hub.toast)
         .onAppear { hub.requestSensors() }
     }
-
-    private func step(_ n: Int, _ title: String, _ detail: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text("\(n)").font(.headline.weight(.bold)).foregroundStyle(.white)
-                .frame(width: 30, height: 30).background(.white.opacity(0.12), in: Circle())
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                Text(detail).font(.caption).foregroundStyle(.white.opacity(0.6))
-            }
-        }
-    }
 }
 
-/// Draws an ECG strip as a scaled line, auto-ranged to the signal, on a faint grid.
+/// Plots an ECG strip with Swift Charts, downsampling long strips with min/max buckets to keep QRS peaks sharp.
 struct EcgTraceView: View {
     let strip: EcgStrip
 
+    private struct SamplePoint: Identifiable {
+        let id: Int
+        let seconds: Double
+        let mv: Double
+    }
+
+    private var points: [SamplePoint] {
+        let mv = strip.millivolts
+        guard mv.count > 1 else { return [] }
+        let hz = Double(max(strip.hz, 1))
+        let maxPoints = 360
+        if mv.count <= maxPoints {
+            return mv.enumerated().map { SamplePoint(id: $0.offset, seconds: Double($0.offset) / hz, mv: $0.element) }
+        }
+        let buckets = maxPoints / 2
+        let step = Double(mv.count) / Double(buckets)
+        var out: [SamplePoint] = []
+        out.reserveCapacity(buckets * 2)
+        var nextId = 0
+        for b in 0..<buckets {
+            let start = Int(Double(b) * step)
+            let end = min(mv.count, Int(Double(b + 1) * step))
+            guard start < end else { continue }
+            var loIdx = start, hiIdx = start
+            for i in start..<end {
+                if mv[i] < mv[loIdx] { loIdx = i }
+                if mv[i] > mv[hiIdx] { hiIdx = i }
+            }
+            if loIdx <= hiIdx {
+                out.append(SamplePoint(id: nextId, seconds: Double(loIdx) / hz, mv: mv[loIdx])); nextId += 1
+                if hiIdx != loIdx {
+                    out.append(SamplePoint(id: nextId, seconds: Double(hiIdx) / hz, mv: mv[hiIdx])); nextId += 1
+                }
+            } else {
+                out.append(SamplePoint(id: nextId, seconds: Double(hiIdx) / hz, mv: mv[hiIdx])); nextId += 1
+                out.append(SamplePoint(id: nextId, seconds: Double(loIdx) / hz, mv: mv[loIdx])); nextId += 1
+            }
+        }
+        return out
+    }
+
     var body: some View {
-        Canvas { ctx, size in
-            let mv = strip.millivolts
-            guard mv.count > 1 else { return }
-            // Grid.
-            let grid = Path { p in
-                let stepX = size.width / 10, stepY = size.height / 4
-                for i in 0...10 { p.move(to: CGPoint(x: CGFloat(i) * stepX, y: 0)); p.addLine(to: CGPoint(x: CGFloat(i) * stepX, y: size.height)) }
-                for i in 0...4 { p.move(to: CGPoint(x: 0, y: CGFloat(i) * stepY)); p.addLine(to: CGPoint(x: size.width, y: CGFloat(i) * stepY)) }
+        Chart(points) { pt in
+            LineMark(
+                x: .value("Seconds", pt.seconds),
+                y: .value("mV", pt.mv)
+            )
+            .foregroundStyle(.pink)
+            .lineStyle(StrokeStyle(lineWidth: 1.5, lineJoin: .round))
+        }
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 5)) { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let s = value.as(Double.self) { Text("\(Int(s.rounded()))s") }
+                }
             }
-            ctx.stroke(grid, with: .color(.white.opacity(0.06)), lineWidth: 1)
-            // Signal, auto-ranged with a little padding.
-            let lo = mv.min() ?? -1, hi = mv.max() ?? 1
-            let range = max(hi - lo, 0.2)
-            let pad = range * 0.1
-            func y(_ v: Double) -> CGFloat { size.height * (1 - CGFloat((v - lo + pad) / (range + 2 * pad))) }
-            let dx = size.width / CGFloat(mv.count - 1)
-            let line = Path { p in
-                p.move(to: CGPoint(x: 0, y: y(mv[0])))
-                for i in 1..<mv.count { p.addLine(to: CGPoint(x: CGFloat(i) * dx, y: y(mv[i]))) }
+        }
+        .chartYAxis {
+            AxisMarks(values: .automatic(desiredCount: 4)) {
+                AxisGridLine()
             }
-            ctx.stroke(line, with: .color(.green), style: StrokeStyle(lineWidth: 1.4, lineJoin: .round))
         }
         .accessibilityLabel("ECG waveform, \(String(format: "%.0f", strip.durationSec)) seconds")
     }
@@ -806,78 +786,131 @@ struct WatchFacesView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 18) {
-                WatchRender(battery: link.watchBattery, connected: link.status == .connected, face: hub.faceImage, size: 210)
-                    .padding(.top, 8)
-                Text(hub.faceName ?? "Current face").font(.title3.weight(.bold)).foregroundStyle(.white)
-                Button { hub.openFacePicker() } label: {
-                    Label("Change face on watch", systemImage: "hand.tap.fill").frame(maxWidth: .infinity)
+            VStack(spacing: 16) {
+                VStack(spacing: 12) {
+                    WatchRender(battery: link.watchBattery, connected: link.status == .connected, face: hub.faceImage, size: 190)
+                        .padding(.top, 4)
+                    Text(hub.faceName ?? "Current face")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.primary)
+                    Button { hub.openFacePicker() } label: {
+                        Label("Change face on watch", systemImage: "hand.tap.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(link.status != .connected)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.accent)
-                .disabled(link.status != .connected)
+                .padding(16)
+                .insetCard()
 
                 NavigationLink { FaceGalleryView() } label: {
                     HStack(spacing: 14) {
                         HStack(spacing: -14) {
                             ForEach(FaceCatalog.styles.prefix(4).map(\.cover)) {
-                                FaceRender(design: $0, showComplications: false).frame(width: 40, height: 40)
-                                    .overlay(Circle().strokeBorder(.black, lineWidth: 2))
+                                FaceRender(design: $0, showComplications: false)
+                                    .frame(width: 40, height: 40)
+                                    .overlay(Circle().strokeBorder(Color(.secondarySystemGroupedBackground), lineWidth: 2))
                             }
                         }
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Face gallery").font(.headline).foregroundStyle(.white)
-                            Text("\(FaceCatalog.all.count) free faces in \(FaceCatalog.styles.count) styles").font(.caption).foregroundStyle(.white.opacity(0.6))
+                            Text("Face gallery")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                            Text("\(FaceCatalog.all.count) free faces in \(FaceCatalog.styles.count) styles")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.4))
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
                     }
-                    .padding(14).card(cornerRadius: 20)
+                    .padding(14)
+                    .insetCard()
                 }
-                .buttonStyle(PressScale())
+                .buttonStyle(.plain)
 
-                SectionTitle(text: "Installed")
-                VStack(spacing: 0) {
-                    if hub.faces.isEmpty {
-                        Text(link.status == .connected ? "Loading…" : "Connect your watch to see its faces.")
-                            .font(.subheadline).foregroundStyle(.white.opacity(0.6)).padding(18)
-                    }
-                    ForEach(hub.faces) { f in
-                        Button { if !f.active { applyTarget = f } } label: {
-                            HStack(spacing: 12) {
-                                Group {
-                                    if let img = hub.facePreviews[f.id] {
-                                        Image(uiImage: img).resizable().scaledToFill()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Installed")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 0) {
+                        if hub.faces.isEmpty {
+                            Text(link.status == .connected ? "Loading…" : "Connect your watch to see its faces.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(16)
+                        }
+                        ForEach(hub.faces) { f in
+                            Button { if !f.active { applyTarget = f } } label: {
+                                HStack(spacing: 12) {
+                                    Group {
+                                        if let img = hub.facePreviews[f.id] {
+                                            Image(uiImage: img).resizable().scaledToFill()
+                                        } else {
+                                            Image(systemName: "applewatch").foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .frame(width: 44, height: 44)
+                                    .background(Color(.tertiarySystemGroupedBackground))
+                                    .clipShape(Circle())
+                                    .overlay(
+                                        Circle().strokeBorder(
+                                            f.active ? Color.accentColor : Color.secondary.opacity(0.2),
+                                            lineWidth: f.active ? 2.5 : 1
+                                        )
+                                    )
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(f.name).foregroundStyle(.primary)
+                                        Text(f.id).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                    Spacer()
+                                    if f.active {
+                                        Label("On watch", systemImage: "checkmark.circle.fill")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(Color.accentColor)
                                     } else {
-                                        Image(systemName: "applewatch").foregroundStyle(.white.opacity(0.4))
+                                        Image(systemName: "arrow.up.forward.app")
+                                            .foregroundStyle(.secondary)
+                                            .accessibilityHidden(true)
                                     }
                                 }
-                                .frame(width: 44, height: 44).background(.black).clipShape(Circle())
-                                .overlay(Circle().strokeBorder(f.active ? Theme.accent2 : .white.opacity(0.15), lineWidth: f.active ? 2.5 : 1))
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(f.name).foregroundStyle(.white)
-                                    Text(f.id).font(.caption2).foregroundStyle(.white.opacity(0.45)).lineLimit(1)
-                                }
-                                Spacer()
-                                if f.active { Text("On watch").font(.caption.weight(.semibold)).foregroundStyle(Theme.accent2) }
-                                else { Image(systemName: "arrow.up.forward.app").foregroundStyle(.white.opacity(0.4)) }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .contentShape(Rectangle())
                             }
-                            .padding(.horizontal, 16).padding(.vertical, 12)
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .disabled(link.status != .connected)
+                            .accessibilityAddTraits(f.active ? .isSelected : [])
+                            if f.id != hub.faces.last?.id { Divider().padding(.leading, 72) }
                         }
-                        .buttonStyle(.plain)
-                        .disabled(link.status != .connected)
-                        if f.id != hub.faces.last?.id { Divider().padding(.leading, 72) }
                     }
+                    .insetCard()
                 }
-                .card()
+
                 NavigationLink { StoreScreen() } label: {
-                    Label("Get more faces on Google Play", systemImage: "bag.fill").frame(maxWidth: .infinity).padding(14).card(cornerRadius: 18)
+                    HStack {
+                        Label("Get more faces on Google Play", systemImage: "bag.fill")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(16)
+                    .insetCard()
                 }
-                .buttonStyle(PressScale()).foregroundStyle(.white)
+                .buttonStyle(.plain)
             }
             .padding(16)
         }
-        .auroraScreen()
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Watch faces")
         .navigationBarTitleDisplayMode(.inline)
         .task { hub.requestFaces(); hub.requestFace() }
@@ -920,7 +953,6 @@ struct NotificationFiltersView: View {
                 }
             } header: { Text("Apps") }
         }
-        .auroraScreen()
         .navigationTitle("Notifications")
         .onAppear { hub.requestNotifApps() }
     }
@@ -940,7 +972,6 @@ struct ContactsView: View {
                 Text("Names, phone numbers and email addresses go only to your watch, over Bluetooth. Run it again after changing contacts; it replaces the previous copy.")
             }
         }
-        .auroraScreen()
         .navigationTitle("Contacts")
         .toast($hub.toast)
     }
@@ -959,7 +990,6 @@ struct RemindersView: View {
                 Text("Add the \"Reminders (iPhone)\" tile on your watch: swipe left from the watch face, then tap +. Tick a reminder on the tile to complete it on your iPhone.")
             }
         }
-        .auroraScreen()
         .navigationTitle("Reminders")
     }
 }
@@ -983,7 +1013,6 @@ struct AlarmsView: View {
                 Button("Start timer on watch") { hub.setTimer(seconds: minutes * 60, label: label) }
             }
         }
-        .auroraScreen()
         .navigationTitle("Alarms & timers")
         .toast($hub.toast)
     }
@@ -1028,12 +1057,14 @@ struct AppsView: View {
                         Button("Open on watch", systemImage: "arrow.up.forward.app") { hub.launch(app.id) }
                         Button("Play Store page", systemImage: "bag") { hub.openStore(app.id) }
                         if !app.system { Button("Uninstall…", systemImage: "trash", role: .destructive) { confirm = app } }
-                    } label: { Image(systemName: "ellipsis.circle").font(.title3) }
+                    } label: {
+                        Image(systemName: "ellipsis.circle").font(.title3)
+                    }
+                    .accessibilityLabel("Actions for \(app.name)")
                 }
             }
         }
         .overlay { if hub.loadingApps && hub.apps.isEmpty { ProgressView() } }
-        .auroraScreen()
         .navigationTitle("Watch apps")
         .refreshable { hub.requestApps() }
         .onAppear { hub.requestApps() }
@@ -1063,7 +1094,6 @@ struct PhotosToWatchView: View {
                 Text("Photos are resized for the watch and appear in its Gallery app, in the Wear OS Bridge album. Bluetooth is slow, so each takes a few seconds.")
             }
         }
-        .auroraScreen()
         .navigationTitle("Photos")
         .onChange(of: item) { _, new in
             guard let new else { return }
@@ -1095,13 +1125,13 @@ struct RecordingsView: View {
                         }
                         Spacer()
                         if hub.downloading == r.id { ProgressView(value: hub.downloadProgress).frame(width: 60) }
-                        else { Image(systemName: "arrow.down.circle") }
+                        else { Image(systemName: "arrow.down.circle").accessibilityHidden(true) }
                     }
                 }
                 .disabled(hub.downloading != nil)
+                .accessibilityHint("Downloads recording to Files")
             }
         }
-        .auroraScreen()
         .navigationTitle("Voice recordings")
         .refreshable { hub.requestRecordings() }
         .onAppear { hub.requestRecordings() }
@@ -1120,7 +1150,6 @@ struct WorkoutsInfoView: View {
             if let last = health.lastWorkout { Section("Last saved") { Text(last) } }
             Section { Button("Allow workouts in Apple Health") { Task { await health.requestAccess() } } }
         }
-        .auroraScreen()
         .navigationTitle("Workouts")
     }
 }
@@ -1134,50 +1163,44 @@ struct CallsView: View {
     @State private var number = ""
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                SectionTitle(text: "Calls on the watch")
+        Form {
+            NotConnected()
+            Section {
+                TextField("Phone number", text: $number)
+                    .keyboardType(.phonePad)
+                Button { hub.call("dial", number: number) } label: {
+                    Label("Call on watch", systemImage: "phone.arrow.up.right.fill")
+                }
+                .tint(.green)
+                .disabled(link.status != .connected || number.isEmpty)
+            } header: {
+                Text("Calls on the watch")
+            } footer: {
                 Text("Answer, reject, hang up or place calls with the call audio on your watch, over its hands-free link to your iPhone.")
-                    .font(.callout).foregroundStyle(.white.opacity(0.75))
-
-                VStack(alignment: .leading, spacing: 14) {
-                    TextField("Phone number", text: $number)
-                        .keyboardType(.phonePad)
-                        .textFieldStyle(.roundedBorder)
-                    Button { hub.call("dial", number: number) } label: {
-                        Label("Call on watch", systemImage: "phone.arrow.up.right.fill").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent).tint(.green)
-                    .disabled(link.status != .connected || number.isEmpty)
-
-                    Divider().overlay(.white.opacity(0.1))
-
-                    HStack(spacing: 12) {
-                        Button { hub.call("answer") } label: { Label("Answer", systemImage: "phone.fill").frame(maxWidth: .infinity) }
-                            .buttonStyle(.borderedProminent).tint(.green)
-                        Button { hub.call("reject") } label: { Label("Reject", systemImage: "phone.down.fill").frame(maxWidth: .infinity) }
-                            .buttonStyle(.borderedProminent).tint(.red)
-                    }
-                    Button { hub.call("hangup") } label: { Label("Hang up", systemImage: "phone.down.fill").frame(maxWidth: .infinity) }
-                        .buttonStyle(.bordered).tint(.white)
-                }
-                .padding(16).card(cornerRadius: 22)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    SectionTitle(text: "Texts")
-                    Label("Incoming texts appear as notifications on the watch, like your other iPhone notifications.", systemImage: "bubble.left.fill")
-                        .font(.callout).foregroundStyle(.white.opacity(0.75))
-                    Label("To send a text, use Siri on the watch — iOS sends it over the hands-free link. The app never injects messages silently.", systemImage: "mic.fill")
-                        .font(.callout).foregroundStyle(.white.opacity(0.75))
-                }
-                .padding(16).card(cornerRadius: 22)
-
-                Text("Calls use a classic-Bluetooth hands-free pairing between the watch and iPhone, which is separate from the Wear OS Bridge connection and is set up in the watch's Bluetooth settings.")
-                    .font(.caption).foregroundStyle(.white.opacity(0.55))
             }
-            .padding(16)
+
+            Section("Active call") {
+                Button { hub.call("answer") } label: {
+                    Label("Answer", systemImage: "phone.fill")
+                }
+                .tint(.green)
+                Button(role: .destructive) { hub.call("reject") } label: {
+                    Label("Reject", systemImage: "phone.down.fill")
+                }
+                Button(role: .destructive) { hub.call("hangup") } label: {
+                    Label("Hang up", systemImage: "phone.down.fill")
+                }
+            }
+
+            Section {
+                Label("Incoming texts appear as notifications on the watch, like your other iPhone notifications.", systemImage: "bubble.left.fill")
+                Label("To send a text, use Siri on the watch — iOS sends it over the hands-free link. The app never injects messages silently.", systemImage: "mic.fill")
+            } header: {
+                Text("Texts")
+            } footer: {
+                Text("Calls use a classic-Bluetooth hands-free pairing between the watch and iPhone, which is separate from the Wear OS Bridge connection and is set up in the watch's Bluetooth settings.")
+            }
         }
-        .auroraScreen()
         .navigationTitle("Calls & texts")
         .navigationBarTitleDisplayMode(.inline)
         .toast($hub.toast)
@@ -1197,7 +1220,6 @@ struct TilesInfoView: View {
                 Text("On the watch, swipe left from the watch face to the end of your tiles, tap +, and add any of these.")
             }
         }
-        .auroraScreen()
         .navigationTitle("Tiles")
     }
 }
@@ -1209,8 +1231,14 @@ private struct Toast: ViewModifier {
     func body(content: Content) -> some View {
         content.overlay(alignment: .bottom) {
             if let text {
-                Text(text).font(.footnote.weight(.medium)).padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(.thinMaterial, in: Capsule()).padding(.bottom, 24)
+                Text(text)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .nativeGlassCapsule()
+                    .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+                    .padding(.bottom, 24)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .task(id: text) { try? await Task.sleep(for: .seconds(3)); withAnimation { self.text = nil } }
             }
