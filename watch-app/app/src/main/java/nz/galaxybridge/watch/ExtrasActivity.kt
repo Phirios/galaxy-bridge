@@ -14,11 +14,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -40,44 +42,47 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
-import androidx.wear.compose.foundation.lazy.ScalingLazyListScope
+import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
+import androidx.wear.compose.foundation.lazy.TransformingLazyColumnScope
 import androidx.wear.compose.foundation.lazy.items
-import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material.Button
-import androidx.wear.compose.material.ButtonDefaults
-import androidx.wear.compose.material.Chip
-import androidx.wear.compose.material.ChipDefaults
-import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.PositionIndicator
-import androidx.wear.compose.material.Scaffold
-import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.TimeText
+import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
+import androidx.wear.compose.material3.AppScaffold
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.ButtonGroup
+import androidx.wear.compose.material3.Card
+import androidx.wear.compose.material3.CheckboxButton
+import androidx.wear.compose.material3.CompactButton
+import androidx.wear.compose.material3.EdgeButton
+import androidx.wear.compose.material3.EdgeButtonSize
+import androidx.wear.compose.material3.FilledIconButton
+import androidx.wear.compose.material3.FilledTonalButton
+import androidx.wear.compose.material3.FilledTonalIconButton
+import androidx.wear.compose.material3.ListHeader
+import androidx.wear.compose.material3.ListSubHeader
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.SurfaceTransformation
+import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.TextButton
+import androidx.wear.compose.material3.TextButtonDefaults
+import androidx.wear.compose.material3.lazy.TransformationSpec
+import androidx.wear.compose.material3.lazy.rememberTransformationSpec
+import androidx.wear.compose.material3.lazy.transformedHeight
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
-
-private val XAccent = Color(0xFF5C6BFF)
-private val XAccent2 = Color(0xFF2ED1DB)
-private val XDim = Color.White.copy(alpha = 0.6f)
-
-private val XColors = androidx.wear.compose.material.Colors(
-    primary = Color(0xFF7C88FF), primaryVariant = XAccent, secondary = XAccent2, secondaryVariant = Color(0xFF1E8C95),
-    surface = Color(0xFF1C2046), onSurface = Color.White, onSurfaceVariant = Color(0xFFB7BCE0),
-    onPrimary = Color.White, onSecondary = Color(0xFF00262A), background = Color.Black, error = Color(0xFFFF6B6B),
-)
 
 /**
  * The watch side of media, productivity and customisation extras: music stored on the watch,
@@ -97,8 +102,11 @@ class ExtrasActivity : ComponentActivity() {
         const val PAGE_CHECKLIST = 7
         const val PAGE_PASSES = 8
 
-        fun open(c: Context, page: Int) = c.startActivity(Intent(c, ExtrasActivity::class.java)
-            .putExtra(EXTRA_PAGE, page).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        fun open(c: Context, page: Int) = c.startActivity(
+            Intent(c, ExtrasActivity::class.java)
+                .putExtra(EXTRA_PAGE, page)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     private var page by mutableIntStateOf(PAGE_HOME)
@@ -110,7 +118,7 @@ class ExtrasActivity : ComponentActivity() {
         page = intent.getIntExtra(EXTRA_PAGE, PAGE_HOME)
         entry = page
         MusicLibrary.load(this); QrPasses.load(this); HomeScenes.load(this); ToolsConfig.load(this); Checklist.load(this)
-        setContent { MaterialTheme(colors = XColors) { Screen() } }
+        setContent { BridgeTheme { AppScaffold { Screen() } } }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -134,7 +142,8 @@ class ExtrasActivity : ComponentActivity() {
     @Composable
     private fun Screen() {
         BackHandler(enabled = page != PAGE_HOME && page != entry) { page = PAGE_HOME }
-        val listState = rememberScalingLazyListState()
+        val listState = rememberTransformingLazyColumnState()
+        val spec = rememberTransformationSpec()
         LaunchedEffect(page) {
             listState.scrollToItem(0)
             setBright(page == PAGE_PASSES || page == PAGE_CLICKER)
@@ -144,24 +153,58 @@ class ExtrasActivity : ComponentActivity() {
         val checklist by Checklist.items.collectAsState()
         val listName by Checklist.list.collectAsState()
         val passes by QrPasses.passes.collectAsState()
-        Scaffold(
-            timeText = { TimeText() },
-            positionIndicator = { PositionIndicator(scalingLazyListState = listState) },
-            modifier = Modifier.background(Color.Black).background(Brush.radialGradient(
-                listOf(Color(0xFF2A1F6B), Color(0xFF0B1F33), Color.Black), radius = 420f)),
-        ) {
-            if (page == PAGE_CLICKER) { ClickerPage(); return@Scaffold }
-            ScalingLazyColumn(state = listState, horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val scenes by HomeScenes.scenes.collectAsState()
+        val lastSceneResult by HomeScenes.lastResult.collectAsState()
+        val clocks by ToolsConfig.clocks.collectAsState()
+
+        var addNote by remember { mutableStateOf("") }
+        val addItemLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+            val t = r.data?.let { RemoteInput.getResultsFromIntent(it)?.getCharSequence("text")?.toString() }
+            if (!t.isNullOrBlank()) addNote = if (Checklist.add(t)) "Added on iPhone" else "iPhone not connected"
+        }
+
+        if (page == PAGE_CLICKER) {
+            ClickerPage()
+            return
+        }
+
+        if (page == PAGE_CHECKLIST) {
+            ScreenScaffold(
+                scrollState = listState,
+                edgeButton = {
+                    EdgeButton(
+                        onClick = { runCatching { addItemLauncher.launch(textInput("New item")) } },
+                        buttonSize = EdgeButtonSize.Small,
+                    ) { Text("Add item") }
+                },
+            ) { contentPadding ->
+                TransformingLazyColumn(
+                    state = listState,
+                    contentPadding = contentPadding,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    checklistPage(spec, checklist, listName, addNote)
+                }
+            }
+            return
+        }
+
+        ScreenScaffold(scrollState = listState) { contentPadding ->
+            TransformingLazyColumn(
+                state = listState,
+                contentPadding = contentPadding,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
                 when (page) {
-                    PAGE_MUSIC -> musicPage(tracks)
-                    PAGE_MEDIA -> mediaPage()
-                    PAGE_TRANSLATE -> translatePage()
+                    PAGE_MUSIC -> musicPage(spec, tracks)
+                    PAGE_MEDIA -> mediaPage(spec)
+                    PAGE_TRANSLATE -> translatePage(spec)
                     PAGE_CALC -> item { Calculator() }
                     PAGE_CONVERT -> item { Converter() }
-                    PAGE_CHECKLIST -> checklistPage(checklist, listName)
-                    PAGE_PASSES -> passesPage(passes)
-                    else -> homePage()
+                    PAGE_PASSES -> passesPage(spec, passes)
+                    else -> homePage(spec, scenes, lastSceneResult, clocks)
                 }
             }
         }
@@ -169,68 +212,121 @@ class ExtrasActivity : ComponentActivity() {
 
     // --- Menu ---
 
-    private fun ScalingLazyListScope.homePage() {
-        item { Title("Extras") }
-        item { Nav("Music on watch", "Offline, to earbuds") { page = PAGE_MUSIC } }
-        item { Nav("iPhone media+", "Seek, like, skip 15 s") { page = PAGE_MEDIA } }
-        item { Nav("Clicker", "Slides: next / previous") { page = PAGE_CLICKER } }
-        item { Nav("Translate", "Speak, iPhone translates") { page = PAGE_TRANSLATE } }
-        item { Nav("Checklist", "Ticks sync to Reminders") { page = PAGE_CHECKLIST } }
-        item { Nav("Passes", "Tickets and boarding passes") { page = PAGE_PASSES } }
-        item { Nav("Calculator", "") { page = PAGE_CALC } }
-        item { Nav("Unit converter", "") { page = PAGE_CONVERT } }
-        item { HomeScenesBlock() }
-        item { WorldClocks() }
-    }
-
-    @Composable
-    private fun HomeScenesBlock() {
-        val scenes by HomeScenes.scenes.collectAsState()
-        val last by HomeScenes.lastResult.collectAsState()
-        if (scenes.isEmpty()) return
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            Label("Home shortcuts")
-            for (s in scenes) Chip(onClick = { HomeScenes.run(this@ExtrasActivity, s.id) }, label = { Text(s.name) },
-                colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
-            if (last.isNotEmpty()) Text(last, fontSize = 11.sp, color = XAccent2, textAlign = TextAlign.Center)
+    private fun TransformingLazyColumnScope.homePage(
+        spec: TransformationSpec,
+        scenes: List<HomeScenes.Scene>,
+        lastSceneResult: String,
+        clocks: List<ToolsConfig.Clock>,
+    ) {
+        header(spec, "Extras")
+        item { Nav("Music on watch", "Offline, to earbuds", SurfaceTransformation(spec), Modifier.transformedHeight(this, spec)) { page = PAGE_MUSIC } }
+        item { Nav("iPhone media+", "Seek, like, skip 15 s", SurfaceTransformation(spec), Modifier.transformedHeight(this, spec)) { page = PAGE_MEDIA } }
+        item { Nav("Clicker", "Slides: next / previous", SurfaceTransformation(spec), Modifier.transformedHeight(this, spec)) { page = PAGE_CLICKER } }
+        item { Nav("Translate", "Speak, iPhone translates", SurfaceTransformation(spec), Modifier.transformedHeight(this, spec)) { page = PAGE_TRANSLATE } }
+        item { Nav("Checklist", "Ticks sync to Reminders", SurfaceTransformation(spec), Modifier.transformedHeight(this, spec)) { page = PAGE_CHECKLIST } }
+        item { Nav("Passes", "Tickets and boarding passes", SurfaceTransformation(spec), Modifier.transformedHeight(this, spec)) { page = PAGE_PASSES } }
+        item { Nav("Calculator", "", SurfaceTransformation(spec), Modifier.transformedHeight(this, spec)) { page = PAGE_CALC } }
+        item { Nav("Unit converter", "", SurfaceTransformation(spec), Modifier.transformedHeight(this, spec)) { page = PAGE_CONVERT } }
+        if (scenes.isNotEmpty()) {
+            item {
+                ListSubHeader(
+                    transformation = SurfaceTransformation(spec),
+                    modifier = Modifier.transformedHeight(this, spec),
+                ) { Text("Home shortcuts") }
+            }
+            items(scenes) { s ->
+                FilledTonalButton(
+                    onClick = { HomeScenes.run(this@ExtrasActivity, s.id) },
+                    label = { Text(s.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    transformation = SurfaceTransformation(spec),
+                    modifier = Modifier.transformedHeight(this, spec).fillMaxWidth(),
+                )
+            }
+            if (lastSceneResult.isNotEmpty()) {
+                item {
+                    Text(
+                        lastSceneResult,
+                        style = MaterialTheme.typography.bodyExtraSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+        if (clocks.isNotEmpty()) {
+            item {
+                ListSubHeader(
+                    transformation = SurfaceTransformation(spec),
+                    modifier = Modifier.transformedHeight(this, spec),
+                ) { Text("World clock") }
+            }
+            item {
+                WorldClocksCard(
+                    clocks = clocks,
+                    transformation = SurfaceTransformation(spec),
+                    modifier = Modifier.transformedHeight(this, spec).fillMaxWidth(),
+                )
+            }
         }
     }
 
     @Composable
-    private fun WorldClocks() {
-        val clocks by ToolsConfig.clocks.collectAsState()
-        if (clocks.isEmpty()) return
+    private fun WorldClocksCard(
+        clocks: List<ToolsConfig.Clock>,
+        transformation: SurfaceTransformation,
+        modifier: Modifier = Modifier,
+    ) {
         var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
         LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(15_000) } }
-        val fmt = DateTimeFormatter.ofPattern("HH:mm")
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(bottom = 24.dp)) {
-            Label("World clock")
-            for (c in clocks) Row(Modifier.padding(top = 2.dp)) {
-                Text(c.label, color = XDim, fontSize = 13.sp)
-                Spacer(Modifier.width(8.dp))
-                Text(Instant.ofEpochMilli(now).atZone(ZoneId.of(c.zone)).format(fmt), color = Color.White,
-                    fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        val fmt = remember { DateTimeFormatter.ofPattern("HH:mm") }
+        Card(
+            onClick = {},
+            enabled = false,
+            transformation = transformation,
+            modifier = modifier,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                for (c in clocks) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(c.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            Instant.ofEpochMilli(now).atZone(ZoneId.of(c.zone)).format(fmt),
+                            style = MaterialTheme.typography.numeralExtraSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
             }
         }
     }
 
     // --- Music on watch ---
 
-    private fun ScalingLazyListScope.musicPage(tracks: List<MusicLibrary.Track>) {
-        item { Title("Music on watch") }
+    private fun TransformingLazyColumnScope.musicPage(spec: TransformationSpec, tracks: List<MusicLibrary.Track>) {
+        header(spec, "Music on watch")
         item { PlayerControls() }
-        item { OutputHint() }
+        item { OutputHint(SurfaceTransformation(spec), Modifier.transformedHeight(this, spec)) }
         item { Incoming() }
-        if (tracks.isEmpty()) item {
-            Text("Send songs or podcasts from the iPhone app: Watch → Music on watch.", fontSize = 12.sp, color = XDim,
-                textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 12.dp))
+        if (tracks.isEmpty()) {
+            item {
+                Text(
+                    "Send songs or podcasts from the iPhone app: Watch → Music on watch.",
+                    style = MaterialTheme.typography.bodyExtraSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+            }
         }
         items(tracks) { t ->
-            Chip(onClick = { MusicPlayer.play(this@ExtrasActivity, t.id) }, label = { Text(t.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            FilledTonalButton(
+                onClick = { MusicPlayer.play(this@ExtrasActivity, t.id) },
+                label = { Text(t.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 secondaryLabel = { Text(listOf(t.artist, mmss(t.ms)).filter { it.isNotEmpty() }.joinToString(" · "), maxLines = 1) },
-                colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth())
+                transformation = SurfaceTransformation(spec),
+                modifier = Modifier.transformedHeight(this, spec).fillMaxWidth(),
+            )
         }
-        item { Spacer(Modifier.height(24.dp)) }
     }
 
     @Composable
@@ -239,46 +335,81 @@ class ExtrasActivity : ComponentActivity() {
         var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
         LaunchedEffect(st) { while (st.playing) { now = System.currentTimeMillis(); delay(1000) } }
         val pos = if (st.playing) st.posMs + (now - st.at) else st.posMs
+        val prevIx = remember { MutableInteractionSource() }
+        val playIx = remember { MutableInteractionSource() }
+        val nextIx = remember { MutableInteractionSource() }
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            Text(st.title.ifEmpty { "Not playing" }, fontWeight = FontWeight.SemiBold, maxLines = 2, textAlign = TextAlign.Center,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp))
-            if (st.durMs > 0) Text("${mmss(pos.coerceAtMost(st.durMs))} / ${mmss(st.durMs)}", fontSize = 11.sp, color = XDim)
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Round("⏮") { MusicPlayer.previous(this@ExtrasActivity) }
-                Button(onClick = { MusicPlayer.toggle(this@ExtrasActivity) }, modifier = Modifier.size(52.dp),
-                    colors = ButtonDefaults.buttonColors(backgroundColor = XAccent)) { Text(if (st.playing) "❚❚" else "▶", fontSize = 18.sp) }
-                Round("⏭") { MusicPlayer.next(this@ExtrasActivity) }
+            Text(
+                st.title.ifEmpty { "Not playing" },
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                textAlign = TextAlign.Center,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            if (st.durMs > 0) {
+                Text(
+                    "${mmss(pos.coerceAtMost(st.durMs))} / ${mmss(st.durMs)}",
+                    style = MaterialTheme.typography.bodyExtraSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            if (st.durMs > 0) Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 6.dp)) {
-                Round("−15") { MusicPlayer.seek(this@ExtrasActivity, (pos - 15_000).coerceAtLeast(0)) }
-                Round("+30") { MusicPlayer.seek(this@ExtrasActivity, (pos + 30_000).coerceAtMost(st.durMs)) }
+            Spacer(Modifier.height(6.dp))
+            ButtonGroup(modifier = Modifier.fillMaxWidth()) {
+                FilledTonalIconButton(
+                    onClick = { MusicPlayer.previous(this@ExtrasActivity) },
+                    interactionSource = prevIx,
+                    modifier = Modifier.weight(1f).animateWidth(prevIx),
+                ) { Text("⏮", style = MaterialTheme.typography.titleSmall) }
+                FilledIconButton(
+                    onClick = { MusicPlayer.toggle(this@ExtrasActivity) },
+                    interactionSource = playIx,
+                    modifier = Modifier.weight(1.25f).animateWidth(playIx),
+                ) { Text(if (st.playing) "❚❚" else "▶", style = MaterialTheme.typography.titleMedium) }
+                FilledTonalIconButton(
+                    onClick = { MusicPlayer.next(this@ExtrasActivity) },
+                    interactionSource = nextIx,
+                    modifier = Modifier.weight(1f).animateWidth(nextIx),
+                ) { Text("⏭", style = MaterialTheme.typography.titleSmall) }
+            }
+            if (st.durMs > 0) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 6.dp)) {
+                    SmallBtn("−15") { MusicPlayer.seek(this@ExtrasActivity, (pos - 15_000).coerceAtLeast(0)) }
+                    SmallBtn("+30") { MusicPlayer.seek(this@ExtrasActivity, (pos + 30_000).coerceAtMost(st.durMs)) }
+                }
             }
         }
     }
 
     @Composable
-    private fun OutputHint() {
+    private fun OutputHint(transformation: SurfaceTransformation, modifier: Modifier = Modifier) {
         var headset by remember { mutableStateOf(MusicPlayer.hasHeadset(this@ExtrasActivity)) }
         LaunchedEffect(Unit) { while (true) { headset = MusicPlayer.hasHeadset(this@ExtrasActivity); delay(3000) } }
-        Chip(onClick = { MusicPlayer.openBluetooth(this@ExtrasActivity) },
+        FilledTonalButton(
+            onClick = { MusicPlayer.openBluetooth(this@ExtrasActivity) },
             label = { Text(if (headset) "Earbuds connected" else "Connect earbuds") },
             secondaryLabel = { Text(if (headset) "Change output" else "Opens Bluetooth") },
-            colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth())
+            transformation = transformation,
+            modifier = modifier.fillMaxWidth(),
+        )
     }
 
     @Composable
     private fun Incoming() {
         val inc by MusicLibrary.incoming.collectAsState()
         val (title, p) = inc ?: return
-        Text("Receiving ${title.ifEmpty { "track" }} · ${(p * 100).toInt()}%", fontSize = 11.sp, color = XAccent2,
-            textAlign = TextAlign.Center)
+        Text(
+            "Receiving ${title.ifEmpty { "track" }} · ${(p * 100).toInt()}%",
+            style = MaterialTheme.typography.bodyExtraSmall,
+            color = MaterialTheme.colorScheme.secondary,
+            textAlign = TextAlign.Center,
+        )
     }
 
     // --- iPhone media extras (AMS) ---
 
-    private fun ScalingLazyListScope.mediaPage() {
-        item { Title("iPhone media+") }
+    private fun TransformingLazyColumnScope.mediaPage(spec: TransformationSpec) {
+        header(spec, "iPhone media+")
         item { MediaPlus() }
     }
 
@@ -289,51 +420,80 @@ class ExtrasActivity : ComponentActivity() {
         LaunchedEffect(np) { while (np.playing) { now = System.currentTimeMillis(); delay(1000) } }
         val elapsed = np.elapsedSec + if (np.playing && np.elapsedAt > 0) (now - np.elapsedAt) / 1000.0 else 0.0
         var scrub by remember { mutableFloatStateOf(-1f) }
+        val cs = MaterialTheme.colorScheme
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            Text(np.title.ifEmpty { "Nothing playing" }, fontWeight = FontWeight.SemiBold, maxLines = 2, textAlign = TextAlign.Center,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp))
-            Text(np.artist, fontSize = 11.sp, color = XDim, maxLines = 1)
+            Text(
+                np.title.ifEmpty { "Nothing playing" },
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                textAlign = TextAlign.Center,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            if (np.artist.isNotEmpty()) {
+                Text(np.artist, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             if (np.durationSec > 0) {
                 val shown = if (scrub >= 0) scrub.toDouble() else elapsed
-                Text("${mmss((shown * 1000).toLong())} / ${mmss((np.durationSec * 1000).toLong())}", fontSize = 12.sp,
-                    color = if (scrub >= 0) XAccent2 else Color.White)
+                Text(
+                    "${mmss((shown * 1000).toLong())} / ${mmss((np.durationSec * 1000).toLong())}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (scrub >= 0) cs.secondary else cs.onSurface,
+                )
                 // Turn the bezel to scrub, then tap Seek. AMS has no seek, so this goes through the iPhone app.
                 val focus = remember { FocusRequester() }
                 LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-                Box(Modifier.focusRequester(focus).focusable().onRotaryScrollEvent {
-                    val base = if (scrub >= 0) scrub else elapsed.toFloat()
-                    scrub = (base + it.verticalScrollPixels / 8f).coerceIn(0f, np.durationSec.toFloat())
-                    true
-                }) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
-                        Small("−15") { scrub = ((if (scrub >= 0) scrub else elapsed.toFloat()) - 15f).coerceAtLeast(0f) }
-                        Chip(onClick = { if (scrub >= 0) { AmsExtra.seek(scrub.toDouble()); scrub = -1f } },
-                            label = { Text(if (scrub >= 0) "Seek" else "Bezel", fontSize = 12.sp) },
-                            colors = ChipDefaults.primaryChipColors(), modifier = Modifier.width(76.dp))
-                        Small("+15") { scrub = ((if (scrub >= 0) scrub else elapsed.toFloat()) + 15f).coerceAtMost(np.durationSec.toFloat()) }
+                Box(
+                    Modifier
+                        .focusRequester(focus)
+                        .focusable()
+                        .onRotaryScrollEvent {
+                            val base = if (scrub >= 0) scrub else elapsed.toFloat()
+                            scrub = (base + it.verticalScrollPixels / 8f).coerceIn(0f, np.durationSec.toFloat())
+                            true
+                        },
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp),
+                    ) {
+                        SmallBtn("−15") { scrub = ((if (scrub >= 0) scrub else elapsed.toFloat()) - 15f).coerceAtLeast(0f) }
+                        CompactButton(
+                            onClick = { if (scrub >= 0) { AmsExtra.seek(scrub.toDouble()); scrub = -1f } },
+                            label = { Text(if (scrub >= 0) "Seek" else "Bezel") },
+                        )
+                        SmallBtn("+15") { scrub = ((if (scrub >= 0) scrub else elapsed.toFloat()) + 15f).coerceAtMost(np.durationSec.toFloat()) }
                     }
                 }
-                Text("Seek works for Apple Music only", fontSize = 10.sp, color = XDim)
+                Text("Seek works for Apple Music only", style = MaterialTheme.typography.bodyExtraSmall, color = cs.onSurfaceVariant)
             }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Round("⟲15") { LinkService.media(AmsExtra.CMD_SKIP_BACKWARD) }
-                Round(if (np.playing) "❚❚" else "▶") { LinkService.media(Ams.CMD_TOGGLE) }
-                Round("15⟳") { LinkService.media(AmsExtra.CMD_SKIP_FORWARD) }
+                RoundBtn("⟲15") { LinkService.media(AmsExtra.CMD_SKIP_BACKWARD) }
+                FilledIconButton(onClick = { LinkService.media(Ams.CMD_TOGGLE) }, modifier = Modifier.size(44.dp)) {
+                    Text(if (np.playing) "❚❚" else "▶", style = MaterialTheme.typography.titleSmall)
+                }
+                RoundBtn("15⟳") { LinkService.media(AmsExtra.CMD_SKIP_FORWARD) }
             }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Round("♥") { LinkService.media(AmsExtra.CMD_LIKE) }
-                Round("✕") { LinkService.media(AmsExtra.CMD_DISLIKE) }
-                Round("🔖") { LinkService.media(AmsExtra.CMD_BOOKMARK) }
+                RoundBtn("♥") { LinkService.media(AmsExtra.CMD_LIKE) }
+                RoundBtn("✕") { LinkService.media(AmsExtra.CMD_DISLIKE) }
+                RoundBtn("🔖") { LinkService.media(AmsExtra.CMD_BOOKMARK) }
             }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Round("🔁") { LinkService.media(AmsExtra.CMD_REPEAT) }
-                Round("🔀") { LinkService.media(AmsExtra.CMD_SHUFFLE) }
+                RoundBtn("🔁") { LinkService.media(AmsExtra.CMD_REPEAT) }
+                RoundBtn("🔀") { LinkService.media(AmsExtra.CMD_SHUFFLE) }
             }
-            Text("Like, skip 15 s and shuffle work when the iPhone app supports them. To change the iPhone's speaker or AirPods, use the output picker in the iPhone app.",
-                fontSize = 10.sp, color = XDim, textAlign = TextAlign.Center, modifier = Modifier.padding(12.dp, 8.dp, 12.dp, 24.dp))
+            Text(
+                "Like, skip 15 s and shuffle work when the iPhone app supports them. To change the iPhone's speaker or AirPods, use the output picker in the iPhone app.",
+                style = MaterialTheme.typography.bodyExtraSmall,
+                color = cs.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            )
         }
     }
 
@@ -348,52 +508,112 @@ class ExtrasActivity : ComponentActivity() {
         val focus = remember { FocusRequester() }
         var acc by remember { mutableFloatStateOf(0f) }
         var lastAt by remember { mutableLongStateOf(0L) }
+        val cs = MaterialTheme.colorScheme
         LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-        Column(horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth().padding(top = 28.dp).focusRequester(focus).focusable()
-                .onRotaryScrollEvent { e ->
-                    // One bezel click = one slide.
-                    acc += e.verticalScrollPixels
-                    val t = System.currentTimeMillis()
-                    if (abs(acc) >= 40f && t - lastAt > 200) {
-                        Presenter.press(if (acc > 0) Presenter.KEY_RIGHT else Presenter.KEY_LEFT)
-                        acc = 0f; lastAt = t
+
+        ScreenScaffold { contentPadding ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .focusRequester(focus)
+                    .focusable()
+                    .onRotaryScrollEvent { e ->
+                        // One bezel click = one slide.
+                        acc += e.verticalScrollPixels
+                        val t = System.currentTimeMillis()
+                        if (abs(acc) >= 40f && t - lastAt > 200) {
+                            Presenter.press(if (acc > 0) Presenter.KEY_RIGHT else Presenter.KEY_LEFT)
+                            acc = 0f; lastAt = t
+                        }
+                        true
+                    },
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxSize().padding(contentPadding).padding(bottom = 36.dp),
+                ) {
+                    Text("Clicker", style = MaterialTheme.typography.labelMedium, color = cs.secondary)
+                    when (state) {
+                        Presenter.State.OFF -> {
+                            val target = targets.getOrNull(chosen)
+                            Text(
+                                target?.name ?: "No paired device",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = cs.onBackground,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                            if (targets.size > 1) {
+                                CompactButton(
+                                    onClick = { chosen = (chosen + 1) % targets.size },
+                                    colors = ButtonDefaults.filledTonalButtonColors(),
+                                    label = { Text("Switch device ⇄") },
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
+                            Text(
+                                "Bluetooth slide remote. Camera shutter pauses until you stop.",
+                                style = MaterialTheme.typography.bodyExtraSmall,
+                                color = cs.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                        }
+                        else -> {
+                            Text(
+                                when (state) {
+                                    Presenter.State.CONNECTED -> "Connected to $host"
+                                    Presenter.State.WAITING -> "Waiting for the device…"
+                                    else -> "Starting…"
+                                },
+                                style = MaterialTheme.typography.bodyExtraSmall,
+                                color = cs.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 6.dp)) {
+                                FilledTonalIconButton(
+                                    onClick = { Presenter.press(Presenter.KEY_LEFT) },
+                                    modifier = Modifier.size(56.dp),
+                                ) { Text("◀", style = MaterialTheme.typography.titleLarge) }
+                                FilledIconButton(
+                                    onClick = { Presenter.press(Presenter.KEY_RIGHT) },
+                                    modifier = Modifier.size(56.dp),
+                                ) { Text("▶", style = MaterialTheme.typography.titleLarge) }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                                SmallBtn("B") { Presenter.press(Presenter.KEY_B) }
+                                SmallBtn("Esc") { Presenter.press(Presenter.KEY_ESC) }
+                            }
+                            Text(
+                                "Turn the bezel to change slides",
+                                style = MaterialTheme.typography.bodyExtraSmall,
+                                color = cs.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
                     }
-                    true
-                }) {
-            Text("CLICKER", fontSize = 11.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold, color = XAccent2)
-            when (state) {
-                Presenter.State.OFF -> {
-                    val target = targets.getOrNull(chosen)
-                    Text(target?.name ?: "No paired device", fontSize = 13.sp, color = Color.White, modifier = Modifier.padding(top = 6.dp))
-                    if (targets.size > 1) Text("Tap to change", fontSize = 10.sp, color = XDim,
-                        modifier = Modifier.padding(bottom = 2.dp).clip(RoundedCornerShape(8.dp)))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-                        if (targets.size > 1) Small("⇄") { chosen = (chosen + 1) % targets.size }
-                        Chip(onClick = { Presenter.start(this@ExtrasActivity, target) }, enabled = target != null,
-                            label = { Text("Start") }, colors = ChipDefaults.primaryChipColors())
-                    }
-                    Text("The watch becomes a Bluetooth keyboard with slide keys. The camera shutter pauses until you stop.",
-                        fontSize = 10.sp, color = XDim, textAlign = TextAlign.Center, modifier = Modifier.padding(16.dp, 8.dp))
                 }
-                else -> {
-                    Text(when (state) {
-                        Presenter.State.CONNECTED -> "Connected to $host"
-                        Presenter.State.WAITING -> "Waiting for the device…"
-                        else -> "Starting…"
-                    }, fontSize = 11.sp, color = XDim)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                        Button(onClick = { Presenter.press(Presenter.KEY_LEFT) }, modifier = Modifier.size(64.dp),
-                            colors = ButtonDefaults.secondaryButtonColors()) { Text("◀", fontSize = 22.sp) }
-                        Button(onClick = { Presenter.press(Presenter.KEY_RIGHT) }, modifier = Modifier.size(64.dp),
-                            colors = ButtonDefaults.buttonColors(backgroundColor = XAccent)) { Text("▶", fontSize = 22.sp) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
-                        Small("B") { Presenter.press(Presenter.KEY_B) }
-                        Small("Esc") { Presenter.press(Presenter.KEY_ESC) }
-                        Small("■") { Presenter.stop(this@ExtrasActivity) }
-                    }
-                    Text("Turn the bezel to change slides", fontSize = 10.sp, color = XDim, modifier = Modifier.padding(top = 4.dp))
+                if (state == Presenter.State.OFF) {
+                    val target = targets.getOrNull(chosen)
+                    EdgeButton(
+                        onClick = { Presenter.start(this@ExtrasActivity, target) },
+                        enabled = target != null,
+                        buttonSize = EdgeButtonSize.Small,
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    ) { Text("Start") }
+                } else {
+                    EdgeButton(
+                        onClick = { Presenter.stop(this@ExtrasActivity) },
+                        buttonSize = EdgeButtonSize.Small,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = cs.errorContainer,
+                            contentColor = cs.onErrorContainer,
+                        ),
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    ) { Text("Stop") }
                 }
             }
         }
@@ -401,13 +621,13 @@ class ExtrasActivity : ComponentActivity() {
 
     // --- Translate ---
 
-    private fun ScalingLazyListScope.translatePage() {
-        item { Title("Translate") }
-        item { TranslateBlock() }
+    private fun TransformingLazyColumnScope.translatePage(spec: TransformationSpec) {
+        header(spec, "Translate")
+        item { TranslateBlock(SurfaceTransformation(spec), Modifier.transformedHeight(this, spec)) }
     }
 
     @Composable
-    private fun TranslateBlock() {
+    private fun TranslateBlock(transformation: SurfaceTransformation, modifier: Modifier = Modifier) {
         val a by ToolsConfig.langA.collectAsState()
         val b by ToolsConfig.langB.collectAsState()
         val pending by Translate.pending.collectAsState()
@@ -426,26 +646,53 @@ class ExtrasActivity : ComponentActivity() {
         }
         val from = if (toB) a else b
         val to = if (toB) b else a
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Chip(onClick = { toB = !toB }, label = { Text("${from.second} → ${to.second}", maxLines = 1) },
-                secondaryLabel = { Text("Tap to swap") }, colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth())
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-                Chip(onClick = {
-                    val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, from.first)
-                    error = if (runCatching { speak.launch(i) }.isSuccess) "" else "No speech input on this watch"
-                }, label = { Text("Speak") }, colors = ChipDefaults.primaryChipColors())
-                Chip(onClick = {
-                    error = if (runCatching { type.launch(textInput("Text to translate")) }.isSuccess) "" else "No keyboard available"
-                }, label = { Text("Type") }, colors = ChipDefaults.secondaryChipColors())
+        val cs = MaterialTheme.colorScheme
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.fillMaxWidth()) {
+            FilledTonalButton(
+                onClick = { toB = !toB },
+                label = { Text("${from.second} → ${to.second}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                secondaryLabel = { Text("Tap to swap") },
+                transformation = transformation,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(6.dp))
+            ButtonGroup(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = {
+                        val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, from.first)
+                        error = if (runCatching { speak.launch(i) }.isSuccess) "" else "No speech input on this watch"
+                    },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Speak") }
+                FilledTonalButton(
+                    onClick = {
+                        error = if (runCatching { type.launch(textInput("Text to translate")) }.isSuccess) "" else "No keyboard available"
+                    },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Type") }
             }
-            if (pending != null) Text("Translating on iPhone…", fontSize = 12.sp, color = XAccent2, modifier = Modifier.padding(top = 8.dp))
-            if (error.isNotEmpty()) Text(error, fontSize = 12.sp, color = Color(0xFFFFC542), modifier = Modifier.padding(top = 8.dp))
+            if (pending != null) {
+                Text("Translating on iPhone…", style = MaterialTheme.typography.bodySmall, color = cs.secondary, modifier = Modifier.padding(top = 8.dp))
+            }
+            if (error.isNotEmpty()) {
+                Text(error, style = MaterialTheme.typography.bodySmall, color = BridgeTokens.Wait, modifier = Modifier.padding(top = 8.dp))
+            }
             result?.let { r ->
-                Text(r.source, fontSize = 12.sp, color = XDim, textAlign = TextAlign.Center, modifier = Modifier.padding(12.dp, 8.dp, 12.dp, 0.dp))
-                Text(r.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
-                    color = if (r.ok) Color.White else Color(0xFFFFC542), modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                Card(
+                    onClick = {},
+                    enabled = false,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                ) {
+                    Text(r.source, style = MaterialTheme.typography.bodyExtraSmall, color = cs.onSurfaceVariant)
+                    Text(
+                        r.text,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (r.ok) cs.onSurface else BridgeTokens.Wait,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
             }
         }
     }
@@ -457,59 +704,92 @@ class ExtrasActivity : ComponentActivity() {
 
     // --- Checklist ---
 
-    private fun ScalingLazyListScope.checklistPage(all: List<Checklist.Item>, listName: String) {
-        item { Title(listName.ifEmpty { "Checklist" }) }
-        item { AddItem() }
+    private fun TransformingLazyColumnScope.checklistPage(
+        spec: TransformationSpec,
+        all: List<Checklist.Item>,
+        listName: String,
+        addNote: String,
+    ) {
+        header(spec, listName.ifEmpty { "Checklist" })
+        if (addNote.isNotEmpty()) {
+            item {
+                Text(addNote, style = MaterialTheme.typography.bodyExtraSmall, color = MaterialTheme.colorScheme.secondary)
+            }
+        }
         val items = all.sortedBy { it.done }
-        if (items.isEmpty()) item {
-            Text("Choose a Reminders list in the iPhone app: Watch → Checklist.", fontSize = 12.sp, color = XDim,
-                textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 12.dp))
+        if (items.isEmpty()) {
+            item {
+                Text(
+                    "Choose a Reminders list in the iPhone app: Watch → Checklist.",
+                    style = MaterialTheme.typography.bodyExtraSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+            }
         }
         items(items) { i ->
-            Chip(onClick = { Checklist.toggle(this@ExtrasActivity, i.id) },
-                label = { Text(i.title, maxLines = 2, color = if (i.done) XDim else Color.White) },
-                icon = { Text(if (i.done) "●" else "○", color = XAccent2, fontSize = 16.sp) },
-                colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth())
-        }
-        item { Spacer(Modifier.height(24.dp)) }
-    }
-
-    @Composable
-    private fun AddItem() {
-        var note by remember { mutableStateOf("") }
-        val type = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-            val t = r.data?.let { RemoteInput.getResultsFromIntent(it)?.getCharSequence("text")?.toString() }
-            if (!t.isNullOrBlank()) note = if (Checklist.add(t)) "Added on iPhone" else "iPhone not connected"
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Chip(onClick = { runCatching { type.launch(textInput("New item")) } }, label = { Text("Add item") },
-                colors = ChipDefaults.primaryChipColors())
-            if (note.isNotEmpty()) Text(note, fontSize = 11.sp, color = XAccent2)
+            CheckboxButton(
+                checked = i.done,
+                onCheckedChange = { Checklist.toggle(this@ExtrasActivity, i.id) },
+                label = {
+                    Text(
+                        i.title,
+                        maxLines = 2,
+                        textDecoration = if (i.done) TextDecoration.LineThrough else TextDecoration.None,
+                    )
+                },
+                transformation = SurfaceTransformation(spec),
+                modifier = Modifier.transformedHeight(this, spec).fillMaxWidth(),
+            )
         }
     }
 
     // --- Passes ---
 
-    private fun ScalingLazyListScope.passesPage(passes: List<QrPasses.Pass>) {
-        item { Title("Passes") }
-        if (passes.isEmpty()) item {
-            Text("Send a ticket or boarding pass from the iPhone app: Watch → Passes.", fontSize = 12.sp, color = XDim,
-                textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 12.dp))
+    private fun TransformingLazyColumnScope.passesPage(spec: TransformationSpec, passes: List<QrPasses.Pass>) {
+        header(spec, "Passes")
+        if (passes.isEmpty()) {
+            item {
+                Text(
+                    "Send a ticket or boarding pass from the iPhone app: Watch → Passes.",
+                    style = MaterialTheme.typography.bodyExtraSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+            }
         }
-        items(passes) { p -> PassCard(p) }
-        item { Spacer(Modifier.height(24.dp)) }
+        items(passes) { p ->
+            PassCard(
+                p = p,
+                transformation = SurfaceTransformation(spec),
+                modifier = Modifier.transformedHeight(this, spec).fillMaxWidth(),
+            )
+        }
     }
 
     @Composable
-    private fun PassCard(p: QrPasses.Pass) {
+    private fun PassCard(p: QrPasses.Pass, transformation: SurfaceTransformation, modifier: Modifier = Modifier) {
         val bmp = remember(p.id) {
             runCatching { BitmapFactory.decodeFile(QrPasses.imageFile(this@ExtrasActivity, p.id).absolutePath)?.asImageBitmap() }.getOrNull()
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 4.dp)) {
-            Text(p.title, fontWeight = FontWeight.SemiBold)
-            if (p.sub.isNotEmpty()) Text(p.sub, fontSize = 11.sp, color = XDim)
-            if (bmp != null) Box(Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp)).background(Color.White).padding(6.dp)) {
-                Image(bmp, contentDescription = p.title, modifier = Modifier.size(150.dp))
+        Card(
+            onClick = {},
+            enabled = false,
+            transformation = transformation,
+            modifier = modifier,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text(p.title, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
+                if (p.sub.isNotEmpty()) {
+                    Text(p.sub, style = MaterialTheme.typography.bodyExtraSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                }
+                if (bmp != null) {
+                    Box(Modifier.padding(top = 6.dp).clip(RoundedCornerShape(10.dp)).background(Color.White).padding(6.dp)) {
+                        Image(bmp, contentDescription = p.title, modifier = Modifier.size(144.dp))
+                    }
+                }
             }
         }
     }
@@ -520,9 +800,21 @@ class ExtrasActivity : ComponentActivity() {
     private fun Calculator() {
         var expr by remember { mutableStateOf("") }
         var shown by remember { mutableStateOf("0") }
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 24.dp, bottom = 24.dp)) {
-            Text(expr.ifEmpty { " " }, fontSize = 11.sp, color = XDim, maxLines = 1)
-            Text(shown, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                expr.ifEmpty { " " },
+                style = MaterialTheme.typography.bodyExtraSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                shown,
+                style = MaterialTheme.typography.numeralSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Keypad(listOf("7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "C", "0", ".", "+", "⌫", "(", ")", "=")) { k ->
                 when (k) {
                     "C" -> { expr = ""; shown = "0" }
@@ -540,11 +832,24 @@ class ExtrasActivity : ComponentActivity() {
         var input by remember { mutableStateOf("") }
         val conv = Calc.CONVERSIONS[unit]
         val value = input.toDoubleOrNull()
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 24.dp, bottom = 24.dp)) {
-            Chip(onClick = { unit = (unit + 1) % Calc.CONVERSIONS.size }, label = { Text("${conv.from} → ${conv.to}") },
-                secondaryLabel = { Text("Tap for next") }, colors = ChipDefaults.secondaryChipColors())
-            Text("${input.ifEmpty { "0" }} ${conv.from}", fontSize = 13.sp, color = XDim)
-            Text(value?.let { "${Calc.format(conv.convert(it))} ${conv.to}" } ?: "—", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+            FilledTonalButton(
+                onClick = { unit = (unit + 1) % Calc.CONVERSIONS.size },
+                label = { Text("${conv.from} → ${conv.to}") },
+                secondaryLabel = { Text("Tap for next") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "${input.ifEmpty { "0" }} ${conv.from}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                value?.let { "${Calc.format(conv.convert(it))} ${conv.to}" } ?: "—",
+                style = MaterialTheme.typography.numeralSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
             Keypad(listOf("7", "8", "9", "4", "5", "6", "1", "2", "3", "−", "0", ".", "C", "⌫"), columns = 3) { k ->
                 when (k) {
                     "C" -> input = ""
@@ -559,47 +864,73 @@ class ExtrasActivity : ComponentActivity() {
     @Composable
     private fun Keypad(keys: List<String>, columns: Int = 4, onKey: (String) -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(top = 4.dp)) {
-            for (row in keys.chunked(columns)) Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                for (k in row) Button(onClick = { onKey(k) }, modifier = Modifier.size(34.dp),
-                    colors = if (k in setOf("=", "+", "−", "×", "÷")) ButtonDefaults.buttonColors(backgroundColor = XAccent)
-                    else ButtonDefaults.secondaryButtonColors()) { Text(k, fontSize = 14.sp) }
+            for (row in keys.chunked(columns)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    for (k in row) {
+                        val isOp = k in setOf("=", "+", "−", "×", "÷")
+                        TextButton(
+                            onClick = { onKey(k) },
+                            colors = if (isOp) TextButtonDefaults.filledTextButtonColors()
+                            else TextButtonDefaults.filledTonalTextButtonColors(),
+                            modifier = Modifier.size(34.dp),
+                        ) { Text(k, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold) }
+                    }
+                }
             }
         }
     }
 
     // --- bits ---
 
-    @Composable
-    private fun Title(text: String) = Text(text.uppercase(), fontSize = 11.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold,
-        color = XAccent2, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 22.dp, bottom = 4.dp))
+    private fun TransformingLazyColumnScope.header(spec: TransformationSpec, text: String) = item {
+        ListHeader(
+            transformation = SurfaceTransformation(spec),
+            modifier = Modifier.transformedHeight(this, spec),
+        ) { Text(text) }
+    }
 
     @Composable
-    private fun Label(text: String) = Text(text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = XDim,
-        modifier = Modifier.padding(top = 8.dp))
-
-    @Composable
-    private fun Nav(label: String, secondary: String, onClick: () -> Unit) = Chip(onClick = onClick, label = { Text(label) },
+    private fun Nav(
+        label: String,
+        secondary: String,
+        transformation: SurfaceTransformation,
+        modifier: Modifier = Modifier,
+        onClick: () -> Unit,
+    ) = FilledTonalButton(
+        onClick = onClick,
+        label = { Text(label) },
         secondaryLabel = if (secondary.isEmpty()) null else ({ Text(secondary, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
-        colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth())
+        transformation = transformation,
+        modifier = modifier.fillMaxWidth(),
+    )
 
     @Composable
-    private fun Round(symbol: String, onClick: () -> Unit) = Button(onClick = onClick, modifier = Modifier.size(42.dp),
-        colors = ButtonDefaults.secondaryButtonColors()) { Text(symbol, fontSize = 13.sp, color = Color.White) }
+    private fun RoundBtn(symbol: String, onClick: () -> Unit) = TextButton(
+        onClick = onClick,
+        colors = TextButtonDefaults.filledTonalTextButtonColors(),
+        modifier = Modifier.size(42.dp),
+    ) { Text(symbol, style = MaterialTheme.typography.labelMedium) }
 
     @Composable
-    private fun Small(symbol: String, onClick: () -> Unit) = Button(onClick = onClick, modifier = Modifier.size(36.dp),
-        colors = ButtonDefaults.secondaryButtonColors()) { Text(symbol, fontSize = 11.sp, color = Color.White) }
+    private fun SmallBtn(symbol: String, onClick: () -> Unit) = TextButton(
+        onClick = onClick,
+        colors = TextButtonDefaults.filledTonalTextButtonColors(),
+        modifier = Modifier.size(36.dp),
+    ) { Text(symbol, style = MaterialTheme.typography.labelSmall) }
 
     private fun mmss(ms: Long): String { val s = ms / 1000; return "%d:%02d".format(s / 60, s % 60) }
 }
 
-/** Entry chip for the main watch screen (MainActivity home and music pages). */
+/** Entry button for the main watch screen (MainActivity home and music pages). */
 @Composable
 fun ExtrasEntryChip(page: Int = ExtrasActivity.PAGE_HOME, label: String = "Extras", secondary: String = "Music, clicker, translate…") {
     val c = LocalContext.current
-    Chip(onClick = { ExtrasActivity.open(c, page) }, label = { Text(label) },
+    FilledTonalButton(
+        onClick = { ExtrasActivity.open(c, page) },
+        label = { Text(label) },
         secondaryLabel = { Text(secondary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth())
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 /** Calculator maths and unit conversions; pure functions so they can be unit-tested. */

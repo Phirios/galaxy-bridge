@@ -59,7 +59,6 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.wear.compose:compose-material3:1.6.2")
     implementation("androidx.wear.compose:compose-foundation:1.6.2")
-    implementation("androidx.wear.compose:compose-material:1.6.2") // temporary during migration
     implementation("androidx.health:health-services-client:1.1.0-alpha05")
     implementation("androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1")
     implementation("androidx.wear.watchface:watchface:1.2.1")
