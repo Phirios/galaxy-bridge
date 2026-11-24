@@ -1,6 +1,185 @@
 import SwiftUI
 
-// MARK: Theme
+// MARK: Native surfaces & Liquid Glass
+
+extension View {
+    /// Native Apple inset-grouped card surface (adapts to Light, Dark, and High Contrast).
+    func insetCard(cornerRadius: CGFloat = 16) -> some View {
+        background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        )
+    }
+
+    /// Lets the iOS 26+ Liquid Glass tab bar minimize while scrolling; no-op on iOS 17–25.
+    @ViewBuilder
+    func nativeTabBarMinimize() -> some View {
+        if #available(iOS 26, *) {
+            tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            self
+        }
+    }
+
+    /// Liquid Glass capsule on iOS 26+, system material capsule on iOS 17–25.
+    @ViewBuilder
+    func nativeGlassCapsule(interactive: Bool = false) -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(interactive ? .regular.interactive() : .regular, in: .capsule)
+        } else {
+            background(.regularMaterial, in: Capsule())
+        }
+    }
+
+    /// Liquid Glass circle on iOS 26+, system material circle on iOS 17–25.
+    @ViewBuilder
+    func nativeGlassCircle(interactive: Bool = false) -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(interactive ? .regular.interactive() : .regular, in: .circle)
+        } else {
+            background(.regularMaterial, in: Circle())
+        }
+    }
+
+    /// Liquid Glass rounded surface on iOS 26+, system material on iOS 17–25.
+    @ViewBuilder
+    func nativeGlassSurface(cornerRadius: CGFloat = 16, interactive: Bool = false) -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(interactive ? .regular.interactive() : .regular,
+                        in: .rect(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+    }
+
+    /// Liquid Glass button style on iOS 26+, bordered button style on iOS 17–25.
+    @ViewBuilder
+    func nativeGlassButton(prominent: Bool = false) -> some View {
+        if #available(iOS 26, *) {
+            if prominent {
+                buttonStyle(.glassProminent)
+            } else {
+                buttonStyle(.glass)
+            }
+        } else {
+            if prominent {
+                buttonStyle(.borderedProminent)
+            } else {
+                buttonStyle(.bordered)
+            }
+        }
+    }
+}
+
+/// Apple Health-style summary card: tinted SF Symbol + category title, timestamp,
+/// prominent Dynamic Type value + unit, and optional supplementary content (such as a chart).
+struct HealthSummaryCard<Extra: View>: View {
+    let title: String
+    let symbol: String
+    let color: Color
+    let value: String
+    let unit: String
+    var timestamp: String? = nil
+    var subtitle: String? = nil
+    var showsChevron: Bool = false
+    var largeValue: Bool = false
+    @ViewBuilder var extra: () -> Extra
+
+    init(
+        title: String,
+        symbol: String,
+        color: Color,
+        value: String,
+        unit: String,
+        timestamp: String? = nil,
+        subtitle: String? = nil,
+        showsChevron: Bool = false,
+        largeValue: Bool = false,
+        @ViewBuilder extra: @escaping () -> Extra = { EmptyView() }
+    ) {
+        self.title = title
+        self.symbol = symbol
+        self.color = color
+        self.value = value
+        self.unit = unit
+        self.timestamp = timestamp
+        self.subtitle = subtitle
+        self.showsChevron = showsChevron
+        self.largeValue = largeValue
+        self.extra = extra
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Label(title, systemImage: symbol)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 4)
+                if let timestamp {
+                    Text(timestamp)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                if showsChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(value)
+                    .font(.system(largeValue ? .largeTitle : .title2, design: .rounded).weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if !unit.isEmpty {
+                    Text(unit)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            extra()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .insetCard()
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Settings-style rounded SF Symbol badge used in grouped lists.
+struct SettingsIconBadge: View {
+    let symbol: String
+    let color: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(width: 28, height: 28)
+            .background(color, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+// MARK: Theme (legacy — removed after screen migration)
 
 enum Theme {
     static let accent = Color(red: 0.45, green: 0.40, blue: 1.0)
@@ -126,7 +305,7 @@ struct PressScale: ButtonStyle {
 // MARK: Watch render
 
 /// A Galaxy Watch4 Classic: rotating bezel with minute track, live analog hands,
-/// a battery arc, and a glow that breathes while connected.
+/// and a battery arc.
 struct WatchRender: View {
     let battery: Int?
     let connected: Bool
@@ -134,47 +313,45 @@ struct WatchRender: View {
     var face: UIImage? = nil
     var size: CGFloat = 230
 
+    private var batteryColor: Color {
+        guard let battery else { return .secondary }
+        return battery <= 20 ? .orange : .green
+    }
+
     var body: some View {
         ZStack {
-            // Glow
-            Circle()
-                .fill(RadialGradient(colors: [(connected ? Theme.accent2 : Color.gray).opacity(0.55), .clear],
-                                     center: .center, startRadius: size * 0.3, endRadius: size * 0.72))
-                .frame(width: size * 1.45, height: size * 1.45)
-                .phaseAnimator([0.75, 1.0]) { v, p in v.opacity(connected ? p : 0.4) } animation: { _ in .easeInOut(duration: 2.2) }
-
             // Lugs
             ForEach([0.0, 180.0], id: \.self) { angle in
                 RoundedRectangle(cornerRadius: size * 0.05)
-                    .fill(LinearGradient(colors: [Color(white: 0.32), Color(white: 0.12)], startPoint: .leading, endPoint: .trailing))
+                    .fill(LinearGradient(colors: [Color(white: 0.36), Color(white: 0.18)], startPoint: .leading, endPoint: .trailing))
                     .frame(width: size * 0.5, height: size * 0.22)
                     .offset(y: -size * 0.5)
                     .rotationEffect(.degrees(angle))
             }
             // Side buttons
             ForEach([-18.0, 18.0], id: \.self) { a in
-                Capsule().fill(Color(white: 0.25)).frame(width: size * 0.07, height: size * 0.13)
+                Capsule().fill(Color(white: 0.28)).frame(width: size * 0.07, height: size * 0.13)
                     .offset(x: size * 0.53).rotationEffect(.degrees(a))
             }
 
             // Case + bezel
             Circle()
-                .fill(AngularGradient(colors: [Color(white: 0.55), Color(white: 0.16), Color(white: 0.42), Color(white: 0.12), Color(white: 0.55)],
+                .fill(AngularGradient(colors: [Color(white: 0.55), Color(white: 0.20), Color(white: 0.44), Color(white: 0.16), Color(white: 0.55)],
                                       center: .center))
                 .frame(width: size, height: size)
+                .shadow(color: .black.opacity(0.22), radius: size * 0.06, y: size * 0.03)
             Circle()
-                .fill(Color(white: 0.07))
+                .fill(Color(white: 0.08))
                 .frame(width: size * 0.9, height: size * 0.9)
             BezelTrack(size: size * 0.9)
 
             // Dial
             Circle()
-                .fill(RadialGradient(colors: [Color(red: 0.10, green: 0.10, blue: 0.20), .black], center: .center,
-                                     startRadius: 0, endRadius: size * 0.36))
+                .fill(Color(white: 0.05))
                 .frame(width: size * 0.72, height: size * 0.72)
             Circle()
                 .trim(from: 0, to: CGFloat(battery ?? 0) / 100)
-                .stroke(Theme.brandGradient, style: StrokeStyle(lineWidth: size * 0.022, lineCap: .round))
+                .stroke(batteryColor, style: StrokeStyle(lineWidth: size * 0.022, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .frame(width: size * 0.64, height: size * 0.64)
                 .animation(.easeOut(duration: 0.8), value: battery)
@@ -184,30 +361,30 @@ struct WatchRender: View {
                     .frame(width: size * 0.6, height: size * 0.6)
                     .clipShape(Circle())
             } else {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                let comps = Calendar.current.dateComponents([.hour, .minute, .second], from: context.date)
-                let h = Double(comps.hour ?? 0 % 12), m = Double(comps.minute ?? 0), s = Double(comps.second ?? 0)
-                ZStack {
-                    VStack(spacing: 2) {
-                        Text(context.date, format: .dateTime.weekday(.abbreviated).day())
-                            .font(.system(size: size * 0.055, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Theme.accent2)
-                        Text(battery.map { "\($0)%" } ?? "—")
-                            .font(.system(size: size * 0.05, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.6))
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    let comps = Calendar.current.dateComponents([.hour, .minute, .second], from: context.date)
+                    let h = Double(comps.hour ?? 0), m = Double(comps.minute ?? 0), s = Double(comps.second ?? 0)
+                    ZStack {
+                        VStack(spacing: 2) {
+                            Text(context.date, format: .dateTime.weekday(.abbreviated).day())
+                                .font(.system(size: size * 0.055, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.85))
+                            Text(battery.map { "\($0)%" } ?? "—")
+                                .font(.system(size: size * 0.05, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                        .offset(y: size * 0.13)
+                        hand(width: size * 0.028, length: size * 0.17, color: .white, angle: (h.truncatingRemainder(dividingBy: 12) + m / 60) * 30)
+                        hand(width: size * 0.02, length: size * 0.25, color: .white, angle: (m + s / 60) * 6)
+                        hand(width: size * 0.008, length: size * 0.28, color: .orange, angle: s * 6)
+                        Circle().fill(.orange).frame(width: size * 0.035)
                     }
-                    .offset(y: size * 0.13)
-                    hand(width: size * 0.028, length: size * 0.17, color: .white, angle: (h.truncatingRemainder(dividingBy: 12) + m / 60) * 30)
-                    hand(width: size * 0.02, length: size * 0.25, color: .white, angle: (m + s / 60) * 6)
-                    hand(width: size * 0.008, length: size * 0.28, color: Theme.accent3, angle: s * 6)
-                    Circle().fill(Theme.accent3).frame(width: size * 0.035)
                 }
-            }
             }
 
             // Glass sheen
             Circle()
-                .fill(LinearGradient(colors: [.white.opacity(0.14), .clear], startPoint: .topLeading, endPoint: .center))
+                .fill(LinearGradient(colors: [.white.opacity(0.12), .clear], startPoint: .topLeading, endPoint: .center))
                 .frame(width: size * 0.72, height: size * 0.72)
                 .allowsHitTesting(false)
         }
@@ -221,7 +398,7 @@ struct WatchRender: View {
             .frame(width: width, height: length)
             .offset(y: -length / 2)
             .rotationEffect(.degrees(angle))
-            .shadow(color: .black.opacity(0.6), radius: 2, y: 1)
+            .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
     }
 }
 
@@ -246,7 +423,7 @@ private struct BezelTrack: View {
                         .rotationEffect(.degrees(Double(i) * 30))
                 }
             }
-            Triangle().fill(Theme.accent3).frame(width: size * 0.06, height: size * 0.05).offset(y: -size * 0.37)
+            Triangle().fill(.orange).frame(width: size * 0.06, height: size * 0.05).offset(y: -size * 0.37)
         }
     }
 }
@@ -261,21 +438,19 @@ private struct Triangle: Shape {
 
 struct ActivityRings: View {
     let rings: [(progress: Double, color: Color)]
-    var lineWidth: CGFloat = 16
+    var lineWidth: CGFloat = 14
 
     var body: some View {
         ZStack {
             ForEach(rings.indices, id: \.self) { i in
                 let inset = CGFloat(i) * (lineWidth + 4)
-                Circle().stroke(rings[i].color.opacity(0.18), lineWidth: lineWidth).padding(inset)
+                Circle().stroke(rings[i].color.opacity(0.2), lineWidth: lineWidth).padding(inset)
                 Circle()
                     .trim(from: 0, to: min(1, max(0.001, rings[i].progress)))
-                    .stroke(AngularGradient(colors: [rings[i].color.opacity(0.7), rings[i].color], center: .center),
-                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .stroke(rings[i].color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .padding(inset)
-                    .shadow(color: rings[i].color.opacity(0.6), radius: 6)
-                    .animation(.spring(duration: 1.2), value: rings[i].progress)
+                    .animation(.spring(duration: 0.9), value: rings[i].progress)
             }
         }
         .padding(lineWidth / 2)
@@ -287,11 +462,10 @@ struct HeartBeat: View {
     let bpm: Double?
     var body: some View {
         Image(systemName: "heart.fill")
-            .foregroundStyle(Theme.heart)
-            .phaseAnimator([1.0, 1.22, 1.0]) { v, s in v.scaleEffect(s) } animation: { _ in
+            .foregroundStyle(.red)
+            .phaseAnimator([1.0, 1.18, 1.0]) { v, s in v.scaleEffect(s) } animation: { _ in
                 .easeInOut(duration: 60 / max(40, bpm ?? 70) / 3)
             }
-            .shadow(color: Theme.heart.opacity(0.7), radius: 8)
     }
 }
 

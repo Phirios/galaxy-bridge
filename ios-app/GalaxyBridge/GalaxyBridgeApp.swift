@@ -56,7 +56,7 @@ struct CameraScreen: View {
                         Image(systemName: "xmark")
                             .font(.headline)
                             .frame(width: 44, height: 44)
-                            .background(.ultraThinMaterial, in: Circle())
+                            .nativeGlassCircle(interactive: true)
                     }
                     .accessibilityLabel("Close camera")
                     Spacer()
@@ -64,7 +64,7 @@ struct CameraScreen: View {
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        .nativeGlassCapsule()
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal)
@@ -77,7 +77,7 @@ struct CameraScreen: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        .nativeGlassCapsule()
                         .transition(.opacity)
                 }
 

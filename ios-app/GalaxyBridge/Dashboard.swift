@@ -1,3 +1,4 @@
+import Charts
 import SafariServices
 import SwiftUI
 import WearLink
@@ -13,8 +14,6 @@ struct Dashboard: View {
         Group {
             if link.hasKnownWatch { MainTabs() } else { PairingView() }
         }
-        .preferredColorScheme(.dark)
-        .tint(Theme.accent2)
     }
 }
 
@@ -30,6 +29,7 @@ private struct MainTabs: View {
             NavigationStack { StoreScreen() }.tabItem { Label("Store", systemImage: "bag.fill") }.tag(2)
             NavigationStack { WatchSettingsView() }.tabItem { Label("Settings", systemImage: "gearshape.fill") }.tag(4)
         }
+        .nativeTabBarMinimize()
         .task {
             await health.requestAccess()
             await phone.requestPermissions()
@@ -50,30 +50,16 @@ private struct HomeView: View {
     @State private var showGallery = false
 
     private var connected: Bool { link.status == .connected }
+    private var dndOn: Bool { link.watchStatus?.settings[WatchSetting.doNotDisturb.rawValue] == 1 }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 18) {
-                HStack { Wordmark(); Spacer() }
-                    .padding(.top, 4)
-
+            VStack(spacing: 16) {
                 hero
 
-                LiveCard(tab: $tab)
+                quickActions
 
-                HStack(spacing: 6) {
-                    OrbButton(title: link.findingWatch ? "Stop" : "Find", symbol: link.findingWatch ? "speaker.slash.fill" : "speaker.wave.3.fill",
-                              color: .orange, active: link.findingWatch) { link.findWatch(!link.findingWatch) }
-                        .disabled(!connected).opacity(connected ? 1 : 0.4)
-                    OrbButton(title: "Camera", symbol: "camera.fill", color: Theme.accent2) { showCamera = true }
-                    OrbButton(title: "Faces", symbol: "sparkles", color: Theme.accent3) { showGallery = true }
-                    OrbButton(title: "DND", symbol: "moon.fill", color: Theme.accent,
-                              active: link.watchStatus?.settings[WatchSetting.doNotDisturb.rawValue] == 1) {
-                        let on = link.watchStatus?.settings[WatchSetting.doNotDisturb.rawValue] == 1
-                        link.set(.doNotDisturb, on ? 0 : 1)
-                    }
-                    .disabled(!connected || link.watchStatus?.perms.dnd != true).opacity(connected ? 1 : 0.4)
-                }
+                LiveCard(tab: $tab)
 
                 if phone.findingPhone { FindingPhoneBanner() }
                 if connected, link.watchStatus?.perms.ancs == false { NotificationSetupCard() }
@@ -84,54 +70,168 @@ private struct HomeView: View {
 
                 if let error = link.lastError ?? health.lastError {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(.footnote).foregroundStyle(.orange)
-                        .frame(maxWidth: .infinity, alignment: .leading).padding().card()
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                        .insetCard()
                 }
-
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 40)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
-        .background(AuroraBackground())
-        .toolbar(.hidden, for: .navigationBar)
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .navigationTitle("Watch")
         .fullScreenCover(isPresented: $showCamera) { CameraScreen() }
         .navigationDestination(isPresented: $showGallery) { FaceGalleryView() }
         .toast($hub.toast)
     }
 
-    /// Compact header: the watch beside its name, face, link status, battery and signal.
+    /// Compact watch card: watch render beside its model name, face, link status, battery and signal.
     private var hero: some View {
         let st = link.watchStatus
         return HStack(spacing: 16) {
-            WatchRender(battery: link.watchBattery, connected: connected, face: hub.faceImage, size: 112)
-                .frame(width: 124, height: 140)
+            WatchRender(battery: link.watchBattery, connected: connected, face: hub.faceImage, size: 100)
+                .frame(width: 112, height: 126)
+
             VStack(alignment: .leading, spacing: 6) {
                 Text(st.map { WatchNames.marketingName($0.model) } ?? "Galaxy Watch")
-                    .font(.title3.weight(.bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.8)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+
                 if let face = hub.faceName {
-                    Text(face).font(.caption).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                    Text(face)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
+
                 StatusPill(status: link.status)
+
                 HStack(spacing: 12) {
                     Label(link.watchBattery.map { "\($0)%" } ?? "–",
                           systemImage: st?.charging == true ? "battery.100.bolt" : "battery.75percent")
                     if let rssi = link.rssi {
-                        Label(rssi > -65 ? "Strong" : rssi > -80 ? "Good" : "Weak", systemImage: "antenna.radiowaves.left.and.right")
+                        Label(rssi > -65 ? "Strong" : rssi > -80 ? "Good" : "Weak",
+                              systemImage: "antenna.radiowaves.left.and.right")
                     }
                     if let st, st.totalMB > 0 {
                         Label("\((st.freeMB / 1000).formatted()) GB", systemImage: "internaldrive")
                     }
                 }
-                .font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.75)).labelStyle(.titleAndIcon)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .labelStyle(.titleAndIcon)
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 4)
+        .padding(16)
+        .insetCard()
+    }
+
+    private var quickActions: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
+            QuickActionButton(
+                title: link.findingWatch ? "Stop" : "Find",
+                symbol: link.findingWatch ? "speaker.slash.fill" : "speaker.wave.3.fill",
+                tint: .orange,
+                active: link.findingWatch,
+                accessibilityLabel: link.findingWatch ? "Stop ringing watch" : "Find watch"
+            ) {
+                link.findWatch(!link.findingWatch)
+            }
+            .disabled(!connected)
+
+            QuickActionButton(
+                title: "Camera",
+                symbol: "camera.fill",
+                tint: .blue,
+                accessibilityLabel: "Open camera remote"
+            ) {
+                showCamera = true
+            }
+
+            QuickActionButton(
+                title: "Faces",
+                symbol: "sparkles",
+                tint: .pink,
+                accessibilityLabel: "Browse watch faces"
+            ) {
+                showGallery = true
+            }
+
+            QuickActionButton(
+                title: "DND",
+                symbol: dndOn ? "moon.fill" : "moon",
+                tint: .indigo,
+                active: dndOn,
+                accessibilityLabel: dndOn ? "Do Not Disturb, on" : "Do Not Disturb, off"
+            ) {
+                link.set(.doNotDisturb, dndOn ? 0 : 1)
+            }
+            .disabled(!connected || link.watchStatus?.perms.dnd != true)
+        }
     }
 }
 
-/// Live snapshot at the top of the dashboard: latest heart rate and SpO₂ from the watch's
-/// sensors, plus the watch's and this iPhone's battery. Values fall back to "–" until they arrive.
+private struct QuickActionButton: View {
+    let title: String
+    let symbol: String
+    let tint: Color
+    var active = false
+    var accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.title3.weight(.semibold))
+                    .symbolEffect(.pulse, isActive: active)
+                    .frame(height: 24)
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+        }
+        .modifier(QuickActionStyle(tint: tint, active: active))
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityAddTraits(active ? .isSelected : [])
+    }
+}
+
+private struct QuickActionStyle: ViewModifier {
+    let tint: Color
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            if active {
+                content
+                    .buttonStyle(.glassProminent)
+                    .tint(tint)
+            } else {
+                content
+                    .buttonStyle(.glass)
+                    .tint(tint)
+            }
+        } else {
+            content
+                .foregroundStyle(active ? .white : tint)
+                .background(
+                    active ? AnyShapeStyle(tint) : AnyShapeStyle(Color(.secondarySystemGroupedBackground)),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+        }
+    }
+}
+
+/// Live snapshot card on the Watch tab: latest heart rate, SpO₂, steps and iPhone battery.
 private struct LiveCard: View {
     @Binding var tab: Int
     @EnvironmentObject var link: WatchLink
@@ -140,40 +240,72 @@ private struct LiveCard: View {
 
     var body: some View {
         let s = health.summary
-        HStack(spacing: 10) {
-            metric(symbol: "heart.fill", color: Theme.heart, title: "Heart",
-                   value: s.heartRate.map { "\(Int($0.rounded()))" } ?? "–", unit: "bpm")
-            divider
-            metric(symbol: "lungs.fill", color: Theme.accent2, title: "SpO₂",
-                   value: s.spo2.map { "\(Int($0.rounded()))" } ?? "–", unit: "%")
-            divider
-            metric(symbol: "figure.walk", color: Theme.steps, title: "Steps",
-                   value: Int(s.steps).formatted(), unit: "")
-            divider
-            metric(symbol: phone.phoneCharging ? "battery.100.bolt" : "iphone",
-                   color: Theme.accent, title: "Phone",
-                   value: phone.phoneBattery.map { "\($0)" } ?? "–", unit: "%")
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity)
-        .card()
-        .contentShape(Rectangle())
-        .onTapGesture { tab = 1 }
-    }
+        Button { tab = 1 } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Summary", systemImage: "heart.text.square.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.red)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        if let at = s.heartRateAt {
+                            Text(at.formatted(.relative(presentation: .named)))
+                        } else {
+                            Text("Health")
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
 
-    private var divider: some View {
-        RoundedRectangle(cornerRadius: 1).fill(.white.opacity(0.12)).frame(width: 1, height: 40)
+                HStack(spacing: 8) {
+                    metric(symbol: "heart.fill", color: .red, title: "Heart",
+                           value: s.heartRate.map { "\(Int($0.rounded()))" } ?? "–", unit: "bpm")
+                    Divider().frame(height: 36)
+                    metric(symbol: "lungs.fill", color: .cyan, title: "SpO₂",
+                           value: s.spo2.map { "\(Int($0.rounded()))" } ?? "–", unit: "%")
+                    Divider().frame(height: 36)
+                    metric(symbol: "figure.walk", color: .green, title: "Steps",
+                           value: Int(s.steps).formatted(), unit: "")
+                    Divider().frame(height: 36)
+                    metric(symbol: phone.phoneCharging ? "battery.100.bolt" : "iphone",
+                           color: .blue, title: "Phone",
+                           value: phone.phoneBattery.map { "\($0)" } ?? "–", unit: "%")
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .insetCard()
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the Health tab")
     }
 
     private func metric(symbol: String, color: Color, title: String, value: String, unit: String) -> some View {
         VStack(spacing: 4) {
-            Image(systemName: symbol).font(.subheadline.weight(.semibold)).foregroundStyle(color)
+            Image(systemName: symbol)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(color)
+                .accessibilityHidden(true)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value).font(.system(.title3, design: .rounded).weight(.bold)).foregroundStyle(.white)
-                    .contentTransition(.numericText()).lineLimit(1).minimumScaleFactor(0.6)
-                Text(unit).font(.caption2).foregroundStyle(.white.opacity(0.6))
+                Text(value)
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                if !unit.isEmpty {
+                    Text(unit)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
-            Text(title).font(.caption2).foregroundStyle(.white.opacity(0.6))
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
@@ -194,71 +326,6 @@ enum WatchNames {
     }
 }
 
-private struct TodayCard: View {
-    let summary: DaySummary
-
-    var body: some View {
-        HStack(spacing: 18) {
-            ActivityRings(rings: [
-                (summary.energy / 500, Theme.energy),
-                (summary.steps / 10_000, Theme.steps),
-                (summary.distance / 8_000, Theme.distance),
-            ], lineWidth: 11)
-            .frame(width: 104, height: 104)
-            VStack(alignment: .leading, spacing: 7) {
-                stat(summary.steps.formatted(.number.precision(.fractionLength(0))), "steps", Theme.steps)
-                stat(summary.energy.formatted(.number.precision(.fractionLength(0))), "kcal", Theme.energy)
-                stat((summary.distance / 1000).formatted(.number.precision(.fractionLength(2))), "km", Theme.distance)
-                HStack(spacing: 6) {
-                    HeartBeat(bpm: summary.heartRate).font(.subheadline)
-                    Text(summary.heartRate.map { "\(Int($0.rounded()))" } ?? "–").font(.headline.monospacedDigit()).foregroundStyle(.white)
-                    Text("bpm").font(.caption).foregroundStyle(.white.opacity(0.6))
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(18)
-        .card()
-    }
-
-    private func stat(_ value: String, _ unit: String, _ color: Color) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Circle().fill(color).frame(width: 7, height: 7)
-            Text(value).font(.headline.monospacedDigit()).foregroundStyle(.white).contentTransition(.numericText())
-            Text(unit).font(.caption).foregroundStyle(.white.opacity(0.6))
-        }
-    }
-}
-
-private struct InfoGrid: View {
-    @EnvironmentObject var link: WatchLink
-    @EnvironmentObject var phone: PhoneServices
-
-    var body: some View {
-        let s = link.watchStatus
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-            tile("Battery", s.map { "\($0.pct)%" } ?? "–", s?.charging == true ? "Charging" : "Watch", "battery.75percent", Theme.steps)
-            tile("Signal", link.rssi.map { "\($0) dBm" } ?? "–", link.rssi.map { $0 > -65 ? "Strong" : $0 > -80 ? "Good" : "Weak" } ?? "Bluetooth",
-                 "antenna.radiowaves.left.and.right", Theme.accent2)
-            tile("Storage", s.map { "\(($0.freeMB / 1000).formatted()) GB" } ?? "–", "free", "internaldrive.fill", Theme.accent)
-            tile("Weather", phone.weather.map { "\(Int($0.tempC.rounded()))°" } ?? "–", phone.weather?.place ?? "On watch", "cloud.sun.fill", Theme.energy)
-        }
-    }
-
-    private func tile(_ title: String, _ value: String, _ sub: String, _ symbol: String, _ color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Image(systemName: symbol).font(.subheadline.weight(.semibold)).foregroundStyle(color)
-                .frame(width: 32, height: 32).background(color.opacity(0.18), in: Circle())
-            Text(title).font(.caption).foregroundStyle(.white.opacity(0.6))
-            Text(value).font(.system(.title3, design: .rounded).weight(.bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.6)
-            Text(sub).font(.caption2).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .card(cornerRadius: 20)
-    }
-}
-
 // MARK: Health
 
 private struct HealthView: View {
@@ -266,86 +333,299 @@ private struct HealthView: View {
     @EnvironmentObject var hub: FeatureHub
     @ObservedObject private var depth = HealthDepthStore.shared
 
+    private var sleepingHrText: String {
+        guard !depth.today.sleepingHR.isEmpty else { return "–" }
+        let avg = depth.today.sleepingHR.reduce(0, +) / Double(depth.today.sleepingHR.count)
+        return "\(Int(avg.rounded()))"
+    }
+
     var body: some View {
         let s = health.summary
         let goal = depth.config
+
         ScrollView {
-            VStack(spacing: 18) {
-                VStack(spacing: 4) {
-                    HeartBeat(bpm: s.heartRate).font(.system(size: 54))
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(s.heartRate.map { "\(Int($0.rounded()))" } ?? "–")
-                            .font(.system(size: 72, weight: .heavy, design: .rounded)).foregroundStyle(.white)
-                            .contentTransition(.numericText())
-                        Text("BPM").font(.headline).foregroundStyle(Theme.heart)
-                    }
-                    if let at = s.heartRateAt {
-                        Text("Measured \(at.formatted(.relative(presentation: .named)))").font(.caption).foregroundStyle(.white.opacity(0.6))
+            VStack(spacing: 16) {
+                // Heart Rate hero card (Health app style)
+                heartRateCard(s)
+
+                // Activity rings card
+                activityCard(summary: s, goal: goal)
+
+                // HRV summary card with inline Swift Chart when readings exist
+                NavigationLink { StressHrvView() } label: {
+                    HealthSummaryCard(
+                        title: "Heart Rate Variability",
+                        symbol: "waveform.path.ecg",
+                        color: .purple,
+                        value: depth.latestHrv.map { "\(Int($0.sdnn.rounded()))" } ?? "–",
+                        unit: "ms",
+                        timestamp: depth.latestHrv.map { $0.at.formatted(.relative(presentation: .named)) } ?? "No data",
+                        subtitle: depth.latestHrv?.stress.map { "Stress \($0) · \(depth.latestHrv?.stressLabel ?? "")" },
+                        showsChevron: true
+                    ) {
+                        if depth.history.count > 1 {
+                            Chart(Array(depth.history.suffix(14))) { reading in
+                                BarMark(
+                                    x: .value("Time", reading.at),
+                                    y: .value("HRV", reading.sdnn)
+                                )
+                                .foregroundStyle(.purple.gradient)
+                                .cornerRadius(3)
+                            }
+                            .chartXAxis(.hidden)
+                            .chartYAxis(.hidden)
+                            .frame(height: 52)
+                            .padding(.top, 4)
+                            .accessibilityHidden(true)
+                        }
                     }
                 }
-                .padding(.top, 10)
+                .buttonStyle(.plain)
 
-                ZStack {
-                    ActivityRings(rings: [(s.energy / Double(goal.goalKcal), Theme.energy), (s.steps / Double(goal.goalSteps), Theme.steps), (s.distance / 8_000, Theme.distance)],
-                                  lineWidth: 22)
-                        .frame(width: 230, height: 230)
-                    VStack(spacing: 0) {
-                        Text(s.steps.formatted(.number.precision(.fractionLength(0))))
-                            .font(.system(size: 30, weight: .heavy, design: .rounded)).foregroundStyle(.white)
-                        Text("steps").font(.caption).foregroundStyle(.white.opacity(0.6))
-                    }
-                }
-                .padding(.vertical, 6)
-
+                // Health summary grid
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                    MetricTile(title: "Active energy", symbol: "flame.fill", color: Theme.energy,
-                               value: s.energy.formatted(.number.precision(.fractionLength(0))), unit: "of \(goal.goalKcal) kcal")
-                    MetricTile(title: "Steps", symbol: "figure.walk", color: Theme.steps,
-                               value: s.steps.formatted(.number.precision(.fractionLength(0))), unit: "of \(goal.goalSteps.formatted())")
-                    MetricTile(title: "Distance", symbol: "location.north.line.fill", color: Theme.distance,
-                               value: (s.distance / 1000).formatted(.number.precision(.fractionLength(2))), unit: "km")
-                    MetricTile(title: "Heart rate", symbol: "heart.fill", color: Theme.heart,
-                               value: s.heartRate.map { "\(Int($0.rounded()))" } ?? "–", unit: "bpm")
-                    MetricTile(title: "Blood oxygen", symbol: "lungs.fill", color: Theme.accent2,
-                               value: s.spo2.map { "\(Int($0.rounded()))" } ?? "–", unit: "% SpO₂")
-                    MetricTile(title: "Skin temp", symbol: "thermometer.medium", color: .orange,
-                               value: s.skinTemp.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "–", unit: "°C")
-                    MetricTile(title: "Resting HR", symbol: "heart.text.square.fill", color: Theme.accent3,
-                               value: s.restingHeartRate.map { "\(Int($0.rounded()))" } ?? "–", unit: "bpm")
-                    MetricTile(title: "Floors", symbol: "figure.stairs", color: Theme.distance,
-                               value: s.floors.formatted(.number.precision(.fractionLength(0))), unit: "climbed")
-                    MetricTile(title: "HRV", symbol: "waveform.path.ecg", color: Theme.accent3,
-                               value: depth.latestHrv.map { "\(Int($0.sdnn.rounded()))" } ?? "–", unit: "ms",
-                               footnote: depth.latestHrv.map { $0.at.formatted(.relative(presentation: .named)) })
-                    MetricTile(title: "Stress", symbol: "brain.head.profile", color: .purple,
-                               value: depth.latestHrv?.stress.map(String.init) ?? "–", unit: depth.latestHrv?.stressLabel ?? "estimate")
-                    MetricTile(title: "Water", symbol: "drop.fill", color: .cyan,
-                               value: "\(Int(depth.today.waterMl.rounded()))", unit: "ml")
-                    MetricTile(title: "Sleeping HR", symbol: "bed.double.fill", color: .indigo,
-                               value: depth.today.sleepingHR.isEmpty ? "–"
-                                   : "\(Int((depth.today.sleepingHR.reduce(0, +) / Double(depth.today.sleepingHR.count)).rounded()))",
-                               unit: "bpm")
+                    HealthSummaryCard(
+                        title: "Blood Oxygen",
+                        symbol: "lungs.fill",
+                        color: .cyan,
+                        value: s.spo2.map { "\(Int($0.rounded()))" } ?? "–",
+                        unit: "%",
+                        timestamp: s.spo2At?.formatted(.relative(presentation: .named))
+                    )
+                    HealthSummaryCard(
+                        title: "Resting HR",
+                        symbol: "heart.text.square.fill",
+                        color: .pink,
+                        value: s.restingHeartRate.map { "\(Int($0.rounded()))" } ?? "–",
+                        unit: "bpm",
+                        timestamp: s.restingHeartRateAt?.formatted(.relative(presentation: .named))
+                    )
+                    HealthSummaryCard(
+                        title: "Skin Temp",
+                        symbol: "thermometer.medium",
+                        color: .orange,
+                        value: s.skinTemp.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "–",
+                        unit: "°C",
+                        timestamp: s.skinTempAt?.formatted(.relative(presentation: .named))
+                    )
+                    HealthSummaryCard(
+                        title: "Floors",
+                        symbol: "figure.stairs",
+                        color: .blue,
+                        value: s.floors.formatted(.number.precision(.fractionLength(0))),
+                        unit: "climbed",
+                        timestamp: "Today"
+                    )
+                    NavigationLink { StressHrvView() } label: {
+                        HealthSummaryCard(
+                            title: "Stress",
+                            symbol: "brain.head.profile",
+                            color: .purple,
+                            value: depth.latestHrv?.stress.map(String.init) ?? "–",
+                            unit: depth.latestHrv?.stressLabel ?? "estimate",
+                            showsChevron: true
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    NavigationLink { IntakeView() } label: {
+                        HealthSummaryCard(
+                            title: "Water",
+                            symbol: "drop.fill",
+                            color: .cyan,
+                            value: "\(Int(depth.today.waterMl.rounded()))",
+                            unit: "ml",
+                            timestamp: "Today",
+                            showsChevron: true
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    HealthSummaryCard(
+                        title: "Sleeping HR",
+                        symbol: "bed.double.fill",
+                        color: .indigo,
+                        value: sleepingHrText,
+                        unit: "bpm",
+                        timestamp: "Today"
+                    )
+                    HealthSummaryCard(
+                        title: "Distance",
+                        symbol: "location.north.line.fill",
+                        color: .blue,
+                        value: (s.distance / 1000).formatted(.number.precision(.fractionLength(2))),
+                        unit: "km",
+                        timestamp: "Today"
+                    )
                 }
 
                 SyncCard()
 
-                SectionTitle(text: "Sensors & workouts")
-                FeatureTileGrid(items: [
-                    FeatureTile(title: "Body sensors", sub: "SpO₂, ECG, body comp", symbol: "heart.text.square.fill", color: .red, dest: AnyView(BodySensorsView())),
-                    FeatureTile(title: "Workouts", sub: "Saved to Health", symbol: "figure.run", color: .green, dest: AnyView(WorkoutsInfoView())),
-                    FeatureTile(title: "Stress & HRV", sub: "Measure, estimate", symbol: "waveform.path.ecg", color: .purple, dest: AnyView(StressHrvView())),
-                    FeatureTile(title: "Goals & reminders", sub: "Rings, move, water", symbol: "target", color: .orange, dest: AnyView(GoalsRemindersView())),
-                    FeatureTile(title: "Water & caffeine", sub: "Log intake", symbol: "drop.fill", color: .cyan, dest: AnyView(IntakeView())),
-                    FeatureTile(title: "Cycle tracking", sub: "Period, symptoms", symbol: "calendar.circle.fill", color: .pink, dest: AnyView(CycleView())),
-                ])
+                sensorsAndWorkoutsSection
+
                 if !health.authorized { HealthAccessCard() }
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 40)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
-        .background(AuroraBackground())
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Health")
         .toast($hub.toast)
+    }
+
+    private func heartRateCard(_ s: DaySummary) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                HStack(spacing: 6) {
+                    HeartBeat(bpm: s.heartRate)
+                        .font(.subheadline)
+                    Text("Heart Rate")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.red)
+                }
+                Spacer()
+                Text(s.heartRateAt?.formatted(.relative(presentation: .named)) ?? "No reading")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(s.heartRate.map { "\(Int($0.rounded()))" } ?? "–")
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+                Text("BPM")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .insetCard()
+        .accessibilityElement(children: .combine)
+    }
+
+    private func activityCard(summary s: DaySummary, goal: HealthDepthStore.Config) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("Activity", systemImage: "flame.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
+                Spacer()
+                Text("Today")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 18) {
+                ActivityRings(
+                    rings: [
+                        (s.energy / Double(max(goal.goalKcal, 1)), .orange),
+                        (s.steps / Double(max(goal.goalSteps, 1)), .green),
+                        (s.distance / 8_000, .blue),
+                    ],
+                    lineWidth: 12
+                )
+                .frame(width: 112, height: 112)
+                .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    activityRow(
+                        symbol: "flame.fill",
+                        color: .orange,
+                        title: "Active Energy",
+                        value: s.energy.formatted(.number.precision(.fractionLength(0))),
+                        unit: "/ \(goal.goalKcal) kcal"
+                    )
+                    activityRow(
+                        symbol: "figure.walk",
+                        color: .green,
+                        title: "Steps",
+                        value: s.steps.formatted(.number.precision(.fractionLength(0))),
+                        unit: "/ \(goal.goalSteps.formatted())"
+                    )
+                    activityRow(
+                        symbol: "location.north.line.fill",
+                        color: .blue,
+                        title: "Distance",
+                        value: (s.distance / 1000).formatted(.number.precision(.fractionLength(2))),
+                        unit: "km"
+                    )
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .insetCard()
+    }
+
+    private func activityRow(symbol: String, color: Color, title: String, value: String, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Label(title, systemImage: symbol)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(color)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(value)
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+                Text(unit)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var sensorsAndWorkoutsSection: some View {
+        let rows: [(String, String, String, Color, AnyView)] = [
+            ("Body sensors", "SpO₂, ECG, body composition", "heart.text.square.fill", .red, AnyView(BodySensorsView())),
+            ("Workouts", "Saved to Apple Health", "figure.run", .green, AnyView(WorkoutsInfoView())),
+            ("Stress & HRV", "Measure and history", "waveform.path.ecg", .purple, AnyView(StressHrvView())),
+            ("Goals & reminders", "Rings, move, water", "target", .orange, AnyView(GoalsRemindersView())),
+            ("Water & caffeine", "Log intake", "drop.fill", .cyan, AnyView(IntakeView())),
+            ("Cycle tracking", "Period and symptoms", "calendar.circle.fill", .pink, AnyView(CycleView())),
+        ]
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Sensors & Workouts")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 4)
+
+            VStack(spacing: 0) {
+                ForEach(rows.indices, id: \.self) { i in
+                    let row = rows[i]
+                    NavigationLink { row.4 } label: {
+                        HStack(spacing: 12) {
+                            SettingsIconBadge(symbol: row.2, color: row.3)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.0)
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+                                Text(row.1)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                                .accessibilityHidden(true)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if i < rows.count - 1 {
+                        Divider().padding(.leading, 56)
+                    }
+                }
+            }
+            .insetCard()
+        }
     }
 }
 
@@ -367,7 +647,7 @@ private struct NotificationSetupCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
+        .insetCard()
     }
 }
 
@@ -386,7 +666,7 @@ private struct ClockWarningCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
+        .insetCard()
     }
 }
 
@@ -397,11 +677,13 @@ private struct FindingPhoneBanner: View {
         HStack {
             Label("Your watch is ringing this iPhone", systemImage: "iphone.radiowaves.left.and.right")
                 .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
             Spacer()
-            Button("Stop") { phone.findPhone(false) }.buttonStyle(.borderedProminent)
+            Button("Stop") { phone.findPhone(false) }
+                .buttonStyle(.borderedProminent)
         }
         .padding(16)
-        .card()
+        .insetCard()
     }
 }
 
@@ -409,17 +691,12 @@ private struct StatusPill: View {
     let status: WatchLink.Status
 
     var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-                .overlay(Circle().stroke(color.opacity(0.4), lineWidth: status == .connected ? 4 : 0))
-            Text(text).font(.caption.weight(.semibold))
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(.white.opacity(0.18), in: Capsule())
+        Label(text, systemImage: symbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.14), in: Capsule())
     }
 
     private var text: String {
@@ -434,50 +711,20 @@ private struct StatusPill: View {
         }
     }
 
+    private var symbol: String {
+        switch status {
+        case .connected: return "checkmark.circle.fill"
+        case .connecting, .searching: return "dot.radiowaves.left.and.right"
+        case .bluetoothOff, .unauthorized, .notPaired, .needsRepair: return "exclamationmark.triangle.fill"
+        }
+    }
+
     private var color: Color {
         switch status {
         case .connected: return .green
-        case .connecting, .searching: return .yellow
+        case .connecting, .searching: return .orange
         case .bluetoothOff, .unauthorized, .notPaired, .needsRepair: return .red
         }
-    }
-}
-
-private struct MetricTile: View {
-    let title: String
-    let symbol: String
-    let color: Color
-    let value: String
-    let unit: String
-    var footnote: String? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: symbol)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(color)
-                    .frame(width: 30, height: 30)
-                    .background(color.opacity(0.15), in: Circle())
-                Spacer()
-            }
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(value)
-                    .font(.system(.title, design: .rounded).weight(.bold))
-                    .contentTransition(.numericText())
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-                Text(unit).font(.caption).foregroundStyle(.secondary)
-            }
-            if let footnote {
-                Text(footnote).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .card()
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -498,21 +745,27 @@ private struct SyncCard: View {
         HStack(spacing: 14) {
             Image(systemName: "heart.text.square.fill")
                 .font(.title2)
-                .foregroundStyle(Theme.heart)
+                .foregroundStyle(.red)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Apple Health").font(.subheadline.weight(.semibold))
+                Text("Apple Health")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
                 if let last = health.lastSync {
                     Text("Synced \(last.formatted(.relative(presentation: .named))) · \(health.savedCount) samples")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text("Waiting for the first readings from your watch")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             Spacer()
         }
         .padding(16)
-        .card()
+        .insetCard()
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -523,15 +776,16 @@ private struct HealthAccessCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Connect Apple Health", systemImage: "heart.circle.fill")
                 .font(.headline)
-                .foregroundStyle(Theme.heart)
+                .foregroundStyle(.red)
             Text("Allow Wear OS Bridge to write heart rate, steps, distance, energy, floors and workouts. It never reads your existing data.")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             Button("Allow access") { Task { await health.requestAccess() } }
                 .buttonStyle(.borderedProminent)
-                .tint(Theme.heart)
+                .tint(.red)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .card()
+        .insetCard()
     }
 }
-
