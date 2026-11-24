@@ -2,17 +2,21 @@ package nz.galaxybridge.watch
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.material.Button
-import androidx.wear.compose.material.ButtonDefaults
-import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.Text
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.ButtonGroup
+import androidx.wear.compose.material3.FilledTonalButton
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.Text
 
 /** Live-workout additions for the watch workout screen: pause/resume, lap button and splits. */
 object WorkoutExtras {
@@ -26,23 +30,41 @@ object WorkoutExtras {
     @Composable
     fun Controls(live: Workouts.Live, onPause: () -> Unit, onResume: () -> Unit, onLap: () -> Unit) {
         val laps by Workouts.laps.collectAsState()
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             when {
-                live.autoPaused -> Text("Auto-paused", style = MaterialTheme.typography.caption2, color = Color(0xFFFFC542))
-                live.paused -> Text("Paused", style = MaterialTheme.typography.caption2, color = Color(0xFFFFC542))
-                live.autoPause -> Text("Auto-pause on", style = MaterialTheme.typography.caption3, color = Color.White.copy(alpha = 0.5f))
+                live.autoPaused -> Text("Auto-paused", style = MaterialTheme.typography.labelSmall, color = BridgeTokens.Wait)
+                live.paused -> Text("Paused", style = MaterialTheme.typography.labelSmall, color = BridgeTokens.Wait)
+                live.autoPause -> Text("Auto-pause on", style = MaterialTheme.typography.bodyExtraSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = if (live.paused) onResume else onPause,
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A3F5C))) {
+            Spacer(Modifier.height(6.dp))
+            ButtonGroup(modifier = Modifier.fillMaxWidth()) {
+                FilledTonalButton(
+                    onClick = if (live.paused) onResume else onPause,
+                    modifier = Modifier.weight(1f),
+                ) {
                     Text(if (live.paused) "▶" else "❚❚")
                 }
-                Button(onClick = onLap, enabled = !live.paused,
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF1E8C95))) { Text("Lap") }
+                Button(
+                    onClick = onLap,
+                    enabled = !live.paused,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Lap")
+                }
             }
-            for (l in laps.takeLast(3).reversed()) {
-                Text("Lap ${l.n}  ${clock(l.activeMs)}  ${"%.2f".format(l.distM / 1000)} km",
-                    style = MaterialTheme.typography.caption3, color = Color.White)
+            if (laps.isNotEmpty()) Spacer(Modifier.height(6.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                for (l in laps.takeLast(3).reversed()) {
+                    Text(
+                        "Lap ${l.n}  ${clock(l.activeMs)}  ${"%.2f".format(l.distM / 1000)} km",
+                        style = MaterialTheme.typography.bodyExtraSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
