@@ -31,11 +31,14 @@ import android.media.RingtoneManager
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.util.Log
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -182,7 +185,11 @@ class LinkService : Service() {
 
     private val outbox = ArrayDeque<ByteArray>()
     private var notifyInFlight = false
-    private val inFlightBatches = HashSet<String>()
+    // Touched from the main thread, GATT binder callbacks and queueIo.
+    private val inFlightBatches: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    // The outbox is files + JSON; reading it on the main thread stalls the UI while a backlog syncs.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val queueIo = Dispatchers.IO.limitedParallelism(1)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -580,16 +587,23 @@ class LinkService : Service() {
 
     /** Sends up to [WINDOW] full batches at a time; the rest follow as acks arrive. */
     fun flushQueue() {
-        if (phone == null || !subscribed) { pending.value = queue.size(); return }
-        if (inFlightBatches.size >= WINDOW) return
-        queue.compact(exclude = inFlightBatches)
-        for ((id, items) in queue.pending(limit = WINDOW - inFlightBatches.size, exclude = inFlightBatches)) {
-            inFlightBatches += id
-            send(WatchMessages.samples(id, items))
-            // If the phone never acks (e.g. it dropped the message), make the batch eligible again.
-            handler.postDelayed({ if (inFlightBatches.remove(id)) flushQueue() }, 30_000)
+        scope.launch {
+            val connected = phone != null && subscribed
+            // Batches are claimed on queueIo, so two flushes in a row can't pick the same one.
+            val (batches, size) = withContext(queueIo) {
+                if (!connected || inFlightBatches.size >= WINDOW) return@withContext emptyList<Pair<String, List<HealthSample>>>() to queue.size()
+                queue.compact(exclude = inFlightBatches)
+                val next = queue.pending(limit = WINDOW - inFlightBatches.size, exclude = inFlightBatches)
+                next.forEach { inFlightBatches += it.first }
+                next to queue.size()
+            }
+            for ((id, items) in batches) {
+                send(WatchMessages.samples(id, items))
+                // If the phone never acks (e.g. it dropped the message), make the batch eligible again.
+                handler.postDelayed({ if (inFlightBatches.remove(id)) flushQueue() }, 30_000)
+            }
+            pending.value = size
         }
-        pending.value = queue.size()
     }
 
     private fun disconnectAll() {

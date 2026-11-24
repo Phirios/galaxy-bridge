@@ -44,10 +44,12 @@ class SampleQueue(dir: File, private val maxBatches: Int = 2_000) {
      * syncs in a few round trips instead of hundreds. In-flight batches are left alone. The merged
      * file is written before the originals are deleted; if that's interrupted, the phone just sees
      * some samples twice, which Apple Health ignores (each sample has a stable sync identifier).
+     * Only small files are read: big ones can't grow much further, and re-parsing every full batch
+     * on each flush is what made a long backlog expensive.
      */
     @Synchronized
     fun compact(exclude: Set<String>) {
-        val small = batchFiles().filter { it.nameWithoutExtension !in exclude }
+        val small = batchFiles().filter { it.nameWithoutExtension !in exclude && it.length() < SMALL_BATCH_BYTES }
         if (small.size < 2) return
         var group = ArrayList<File>()
         var items = ArrayList<HealthSample>()
@@ -102,5 +104,8 @@ class SampleQueue(dir: File, private val maxBatches: Int = 2_000) {
     companion object {
         /** Must not exceed GBMessage.maxSamplesPerBatch (500) on the iPhone. */
         const val MAX_PER_BATCH = 500
+
+        /** About a quarter of a full batch (a sample is ~60 bytes of JSON). */
+        const val SMALL_BATCH_BYTES = 8 * 1024L
     }
 }

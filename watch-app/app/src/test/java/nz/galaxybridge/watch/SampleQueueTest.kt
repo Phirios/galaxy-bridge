@@ -32,6 +32,17 @@ class SampleQueueTest {
         assertEquals(2, ids.size)                          // the in-flight one + one merged batch of 4
     }
 
+    @Test fun leavesFullBatchesUnread() {
+        val q = SampleQueue(tmp.root)
+        q.add((0 until SampleQueue.MAX_PER_BATCH).map { hr(it.toLong()) })
+        val full = q.pending().single().first
+        repeat(3) { i -> q.add(listOf(hr(10_000L + i))) }
+        q.compact(exclude = emptySet())
+        val ids = q.pending().map { it.first }
+        assertTrue(full in ids)
+        assertEquals(2, ids.size)                          // the full one + one merged batch of 3
+    }
+
     @Test fun pendingRespectsLimitAndExclude() {
         val q = SampleQueue(tmp.root)
         repeat(4) { i -> q.add(listOf(hr(i.toLong()))) }
