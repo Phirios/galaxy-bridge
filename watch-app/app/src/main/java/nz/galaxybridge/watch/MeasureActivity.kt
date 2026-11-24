@@ -7,7 +7,6 @@ import android.os.Handler
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,16 +15,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.material.CircularProgressIndicator
-import androidx.wear.compose.material.Text
+import androidx.wear.compose.material3.AppScaffold
+import androidx.wear.compose.material3.CircularProgressIndicator
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.Text
 
 /**
  * Our own on-watch measurement panel. When the phone asks for an on-demand sensor read
@@ -47,10 +46,12 @@ class MeasureActivity : ComponentActivity() {
 
         /** Launches the panel. Returns false if the activity couldn't be started. */
         fun launch(ctx: Context, kind: String, sensors: List<String> = emptyList()): Boolean = runCatching {
-            ctx.startActivity(Intent(ctx, MeasureActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                .putExtra(EXTRA_KIND, kind)
-                .putExtra(EXTRA_SENSORS, sensors.toTypedArray()))
+            ctx.startActivity(
+                Intent(ctx, MeasureActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    .putExtra(EXTRA_KIND, kind)
+                    .putExtra(EXTRA_SENSORS, sensors.toTypedArray()),
+            )
             true
         }.getOrDefault(false)
     }
@@ -75,23 +76,44 @@ class MeasureActivity : ComponentActivity() {
         }
 
         setContent {
-            Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                Column(
-                    Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    val done = value
-                    if (busy.value) CircularProgressIndicator(Modifier.size(48.dp), indicatorColor = Color(0xFF4DA3FF))
-                    Spacer(Modifier.height(16.dp))
-                    Text(title.value, color = Color.White, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-                    done.value?.let {
-                        Spacer(Modifier.height(10.dp))
-                        Text(it, color = Color(0xFF4DA3FF), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                    }
-                    if (busy.value) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(hint.value, color = Color.White.copy(alpha = 0.6f), textAlign = TextAlign.Center)
+            BridgeTheme {
+                AppScaffold {
+                    ScreenScaffold { contentPadding ->
+                        Box(Modifier.fillMaxSize().padding(contentPadding), contentAlignment = Alignment.Center) {
+                            Column(
+                                Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                val done = value.value
+                                if (busy.value) CircularProgressIndicator(Modifier.size(44.dp))
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    title.value,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    textAlign = TextAlign.Center,
+                                )
+                                done?.let {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        it,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
+                                if (busy.value) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        hint.value,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
