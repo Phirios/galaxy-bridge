@@ -68,6 +68,7 @@ struct WatchSettingsView: View {
                         editingBrightness = editing
                         if !editing { link.set(.brightness, Int(brightness)) }
                     }
+                    .accessibilityLabel("Brightness")
                 }
                 .disabled(!(s?.perms.system ?? false))
                 Picker(selection: binding(.screenTimeout, default: 15)) {
@@ -133,12 +134,12 @@ struct WatchSettingsView: View {
             .disabled(s?.perms.secure != true)
 
             Section {
-                toggle("Heart rate", .syncHeart, symbol: "heart.fill", color: Theme.heart)
-                toggle("Steps", .syncSteps, symbol: "figure.walk", color: Theme.steps)
-                toggle("Active energy", .syncEnergy, symbol: "flame.fill", color: Theme.energy)
-                toggle("Distance", .syncDistance, symbol: "location.north.line.fill", color: Theme.distance)
+                toggle("Heart rate", .syncHeart, symbol: "heart.fill", color: .red)
+                toggle("Steps", .syncSteps, symbol: "figure.walk", color: .green)
+                toggle("Active energy", .syncEnergy, symbol: "flame.fill", color: .orange)
+                toggle("Distance", .syncDistance, symbol: "location.north.line.fill", color: .blue)
                 toggle("Floors climbed", .syncFloors, symbol: "figure.stairs", color: .orange)
-                healthToggle("Blood oxygen", .syncSpo2, symbol: "lungs.fill", color: Theme.accent2,
+                healthToggle("Blood oxygen", .syncSpo2, symbol: "lungs.fill", color: .cyan,
                              latest: health.summary.spo2.map { "\(Int($0.rounded()))%" })
                 healthToggle("Skin temperature", .syncSkinTemp, symbol: "thermometer.medium", color: .orange, latest: nil)
                 healthToggle("Sleep", .syncSleep, symbol: "bed.double.fill", color: .indigo, latest: nil)
@@ -216,9 +217,7 @@ struct WatchSettingsView: View {
                     }
             }
         }
-        .auroraScreen()
-        .navigationTitle("Watch settings")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("Settings")
         .toast($hub.toast)
         .disabled(!connected)
         .onAppear { link.send(.getStatus) }
@@ -276,11 +275,7 @@ struct WatchSettingsView: View {
     }
 
     private func icon(_ symbol: String, _ color: Color) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: 28, height: 28)
-            .background(color, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        SettingsIconBadge(symbol: symbol, color: color)
     }
 
     private func row(_ title: String, _ value: String) -> some View {
@@ -305,15 +300,22 @@ struct SoundsView: View {
             }
         }
         .overlay { if hub.ringtones.isEmpty { ProgressView() } }
-        .auroraScreen()
         .navigationTitle("Sounds")
         .onAppear { hub.requestSounds() }
     }
 
     private func row(_ s: FeatureHub.Sound, current: String, pick: @escaping () -> Void) -> some View {
         Button(action: pick) {
-            HStack { Text(s.title).foregroundStyle(.primary); Spacer(); if s.uri == current { Image(systemName: "checkmark") } }
+            HStack {
+                Text(s.title).foregroundStyle(.primary)
+                Spacer()
+                if s.uri == current {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
         }
+        .accessibilityAddTraits(s.uri == current ? .isSelected : [])
     }
 }
 
@@ -333,7 +335,6 @@ struct ConnectionHistoryView: View {
             }
         }
         .overlay { if link.history.isEmpty { ContentUnavailableView("No history yet", systemImage: "clock") } }
-        .auroraScreen()
         .navigationTitle("Connection history")
     }
 }

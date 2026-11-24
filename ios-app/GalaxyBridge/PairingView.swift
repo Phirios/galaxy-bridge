@@ -10,7 +10,7 @@ struct PairingView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     hero
                     if link.isPairing {
                         nearbyList
@@ -19,9 +19,11 @@ struct PairingView: View {
                         Button {
                             link.startPairing()
                         } label: {
-                            Label("Find my watch", systemImage: "dot.radiowaves.left.and.right").font(.headline).frame(maxWidth: .infinity)
+                            Label("Find my watch", systemImage: "dot.radiowaves.left.and.right")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent).tint(Theme.accent)
+                        .buttonStyle(.borderedProminent)
                         .controlSize(.large)
                     }
                     if let error = link.lastError {
@@ -29,55 +31,61 @@ struct PairingView: View {
                             .font(.footnote)
                             .foregroundStyle(.orange)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                            .insetCard()
                     }
                 }
                 .padding(20)
             }
-            .auroraScreen()
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .navigationTitle("Wear OS Bridge")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if link.isPairing {
-                    Button("Cancel") { link.stopPairing() }
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { link.stopPairing() }
+                    }
                 }
             }
         }
-        .tint(Theme.accent)
-        .preferredColorScheme(.dark)
     }
 
     private var hero: some View {
         VStack(spacing: 14) {
-            Wordmark()
             ZStack {
-                ForEach(0..<3) { i in
-                    Circle().strokeBorder(Theme.accent2.opacity(0.35 - Double(i) * 0.1), lineWidth: 1.5)
-                        .frame(width: 250 + CGFloat(i) * 46, height: 250 + CGFloat(i) * 46)
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .strokeBorder(Color.accentColor.opacity(0.28 - Double(i) * 0.08), lineWidth: 1.5)
+                        .frame(width: 230 + CGFloat(i) * 40, height: 230 + CGFloat(i) * 40)
                         .scaleEffect(link.isPairing ? 1.06 : 1)
                         .animation(link.isPairing ? .easeInOut(duration: 1.2).repeatForever().delay(Double(i) * 0.25) : .default, value: link.isPairing)
                 }
-                WatchRender(battery: nil, connected: link.isPairing, size: 200)
+                WatchRender(battery: nil, connected: link.isPairing, size: 190)
             }
-            .frame(height: 300)
+            .frame(height: 270)
             Text(link.isPairing ? "Looking for your watch" : "Pair your Galaxy Watch")
-                .font(.title2.weight(.bold)).foregroundStyle(.white)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(.primary)
             Text(link.isPairing
                  ? "Keep the watch close and its Wear OS Bridge app in pairing mode."
                  : "Wear OS Bridge syncs your health data to Apple Health and turns your watch into a camera remote.")
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .padding(.top, 12)
+        .padding(.top, 8)
     }
 
     private var steps: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             Step(number: 1, text: "Open **Wear OS Bridge** on your watch.")
             Step(number: 2, text: "Tap **Pair iPhone** (or **Pair new phone**).")
             Step(number: 3, text: "Tap **Find my watch** below and choose it.")
             Step(number: 4, text: "Check the **code matches** on both screens, then accept on both.")
         }
-        .padding(18)
-        .card()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .insetCard()
     }
 
     private var nearbyList: some View {
@@ -86,21 +94,28 @@ struct PairingView: View {
                 HStack(spacing: 12) {
                     ProgressView()
                     Text("Searching… make sure the watch shows “Ready to pair”.")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(18)
+                .padding(16)
             } else {
-                ForEach(link.nearby.sorted { $0.rssi > $1.rssi }) { watch in
+                let sorted = link.nearby.sorted { $0.rssi > $1.rssi }
+                ForEach(sorted) { watch in
                     Button { link.pair(with: watch) } label: {
                         HStack(spacing: 14) {
                             Image(systemName: "applewatch")
                                 .font(.title3)
-                                .foregroundStyle(Theme.accent)
+                                .foregroundStyle(Color.accentColor)
                                 .frame(width: 36, height: 36)
-                                .background(Theme.accent.opacity(0.12), in: Circle())
+                                .background(Color.accentColor.opacity(0.14), in: Circle())
+                                .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(watch.name).font(.body.weight(.semibold))
-                                Text("Ready to pair").font(.caption).foregroundStyle(.green)
+                                Text(watch.name)
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Label("Ready to pair", systemImage: "checkmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
                             }
                             Spacer()
                             SignalBars(rssi: watch.rssi)
@@ -109,11 +124,11 @@ struct PairingView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    if watch.id != link.nearby.sorted(by: { $0.rssi > $1.rssi }).last?.id { Divider().padding(.leading, 66) }
+                    if watch.id != sorted.last?.id { Divider().padding(.leading, 66) }
                 }
             }
         }
-        .card()
+        .insetCard()
     }
 }
 
@@ -127,8 +142,11 @@ private struct Step: View {
                 .font(.footnote.weight(.bold))
                 .foregroundStyle(.white)
                 .frame(width: 24, height: 24)
-                .background(Theme.accent, in: Circle())
-            Text(text).font(.subheadline)
+                .background(Color.accentColor, in: Circle())
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
         }
     }
 }
@@ -141,10 +159,11 @@ private struct SignalBars: View {
         HStack(alignment: .bottom, spacing: 2) {
             ForEach(1...3, id: \.self) { i in
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(i <= level ? Theme.accent : Color.secondary.opacity(0.3))
+                    .fill(i <= level ? Color.accentColor : Color.secondary.opacity(0.3))
                     .frame(width: 4, height: CGFloat(4 + i * 4))
             }
         }
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Signal \(level) of 3")
     }
 }
@@ -463,111 +482,116 @@ extension NativePairingManager: CBPeripheralManagerDelegate {
     private func uuid(_ c: CBCharacteristic) -> UUID { UUID(uuidString: c.uuid.uuidString) ?? UUID() }
 }
 
-/// Optional, experimental screen that surfaces native (UKEY2) pairing. Reached from More.
+/// Optional, experimental screen that surfaces native (UKEY2) pairing. Reached from Settings.
 struct NativePairingView: View {
     @StateObject private var manager = NativePairingManager()
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                if manager.isPaired { pairedCard }
-                if let code = manager.verificationCode { verifyCard(code) }
-                controls
-                if !manager.log.isEmpty { logCard }
+        Form {
+            Section {
+                Label("Experimental", systemImage: "wand.and.stars")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
+                Text("Pair a factory-reset watch directly with this iPhone, the way the watch's own firmware pairs with an Android phone, using the encrypted UKEY2 handshake. This is optional — Wear OS Bridge works fully over its own companion pairing without it.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            .padding(18)
-        }
-        .auroraScreen()
-        .navigationTitle("Native pairing")
-        .onDisappear { manager.stop() }
-    }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Experimental", systemImage: "wand.and.stars")
-                .font(.caption.weight(.bold)).foregroundStyle(Theme.accent2)
-            Text("Pair a factory-reset watch directly with this iPhone, the way the watch's own firmware pairs with an Android phone, using the encrypted UKEY2 handshake. This is optional — Wear OS Bridge works fully over its own companion pairing without it.")
-                .font(.subheadline).foregroundStyle(.white.opacity(0.7))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16).card()
-    }
-
-    private var pairedCard: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).font(.title2)
-            VStack(alignment: .leading) {
-                Text("Native pairing record saved").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                Text("This iPhone has claimed a native pair.").font(.caption).foregroundStyle(.white.opacity(0.6))
-            }
-            Spacer()
-            Button("Forget") { manager.forget() }.font(.caption.weight(.semibold))
-        }
-        .padding(16).card()
-    }
-
-    private func verifyCard(_ code: String) -> some View {
-        VStack(spacing: 10) {
-            Text("Verification code").font(.caption).foregroundStyle(.white.opacity(0.6))
-            Text(code).font(.system(.title, design: .monospaced).weight(.bold)).foregroundStyle(.white)
-                .textSelection(.enabled)
-            Text("Check this matches the code on the watch, then confirm on both.")
-                .font(.caption).foregroundStyle(.white.opacity(0.6)).multilineTextAlignment(.center)
-            Button("It matches — confirm") { manager.approve() }
-                .buttonStyle(.borderedProminent).tint(Theme.accent).disabled(manager.approved)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(16).card()
-    }
-
-    private var controls: some View {
-        VStack(spacing: 12) {
-            Text(statusText).font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if manager.phase == .scanning {
-                if manager.watches.isEmpty {
-                    HStack(spacing: 10) { ProgressView(); Text("Scanning…").font(.subheadline).foregroundStyle(.secondary) }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    ForEach(manager.watches.sorted { $0.rssi > $1.rssi }) { w in
-                        Button { manager.setUp(w) } label: {
-                            HStack {
-                                Image(systemName: "applewatch").foregroundStyle(Theme.accent)
-                                VStack(alignment: .leading) {
-                                    Text(w.name).font(.body.weight(.semibold)).foregroundStyle(.white)
-                                    Text(w.onSetupScreen ? "On setup screen" : "Not on setup screen")
-                                        .font(.caption).foregroundStyle(w.onSetupScreen ? .green : .orange)
-                                }
-                                Spacer()
-                            }
-                            .padding(.vertical, 6).contentShape(Rectangle())
+            if manager.isPaired {
+                Section("Saved pairing") {
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                            .font(.title3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Native pairing record saved")
+                                .font(.subheadline.weight(.semibold))
+                            Text("This iPhone has claimed a native pair.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain)
+                    }
+                    Button("Forget native pairing", role: .destructive) { manager.forget() }
+                }
+            }
+
+            if let code = manager.verificationCode {
+                Section("Verification code") {
+                    VStack(spacing: 10) {
+                        Text(code)
+                            .font(.system(.title, design: .monospaced).weight(.bold))
+                            .textSelection(.enabled)
+                        Text("Check this matches the code on the watch, then confirm on both.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        Button("It matches — confirm") { manager.approve() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(manager.approved)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                }
+            }
+
+            Section("Status") {
+                Text(statusText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Button { manager.startScan() } label: {
+                    Label("Scan for watch", systemImage: "dot.radiowaves.left.and.right")
+                }
+                Button { manager.startHosting() } label: {
+                    Label("Host setup service", systemImage: "antenna.radiowaves.left.and.right")
+                }
+            }
+
+            if manager.phase == .scanning {
+                Section("Nearby watches") {
+                    if manager.watches.isEmpty {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Scanning…")
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        ForEach(manager.watches.sorted { $0.rssi > $1.rssi }) { w in
+                            Button { manager.setUp(w) } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "applewatch")
+                                        .foregroundStyle(Color.accentColor)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(w.name)
+                                            .font(.body.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                        Label(
+                                            w.onSetupScreen ? "On setup screen" : "Not on setup screen",
+                                            systemImage: w.onSetupScreen ? "checkmark.circle.fill" : "exclamationmark.circle"
+                                        )
+                                        .font(.caption)
+                                        .foregroundStyle(w.onSetupScreen ? .green : .orange)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                        }
                     }
                 }
             }
-            HStack(spacing: 10) {
-                Button { manager.startScan() } label: {
-                    Label("Scan", systemImage: "dot.radiowaves.left.and.right").frame(maxWidth: .infinity)
-                }.buttonStyle(.bordered)
-                Button { manager.startHosting() } label: {
-                    Label("Host setup", systemImage: "antenna.radiowaves.left.and.right").frame(maxWidth: .infinity)
-                }.buttonStyle(.bordered)
-            }
-        }
-        .padding(16).card()
-    }
 
-    private var logCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Progress").font(.caption).foregroundStyle(.white.opacity(0.6))
-            ForEach(Array(manager.log.enumerated()), id: \.offset) { _, line in
-                Text(line).font(.system(.caption2, design: .monospaced)).foregroundStyle(.white.opacity(0.75))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if !manager.log.isEmpty {
+                Section("Progress") {
+                    ForEach(Array(manager.log.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
-        .padding(16).card()
+        .navigationTitle("Native pairing")
+        .onDisappear { manager.stop() }
     }
 
     private var statusText: String {

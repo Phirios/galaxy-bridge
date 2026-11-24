@@ -26,7 +26,8 @@ struct StoreScreen: View {
 
             StoreWebView(web: web)
                 .overlay { if web.loading { ProgressView() } }
-
+        }
+        .safeAreaInset(edge: .bottom) {
             if let pkg = web.packageName {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -37,11 +38,13 @@ struct StoreScreen: View {
                     Button { hub.openStore(pkg) } label: {
                         Label("Install on watch", systemImage: "applewatch.and.arrow.forward")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .nativeGlassButton(prominent: true)
                 }
-                .padding()
-                .background(.bar)
-                .transition(.move(edge: .bottom))
+                .padding(14)
+                .nativeGlassSurface(cornerRadius: 18)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.default, value: web.packageName)
@@ -55,7 +58,9 @@ struct StoreScreen: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button { web.back() } label: { Image(systemName: "chevron.backward") }.disabled(!web.canGoBack)
+                Button { web.back() } label: { Image(systemName: "chevron.backward") }
+                    .disabled(!web.canGoBack)
+                    .accessibilityLabel("Back")
             }
         }
         .onAppear { if web.webView.url == nil { web.load(Self.sections[section].1) } }
